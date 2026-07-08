@@ -2,26 +2,37 @@ module Main (main) where
 
 import System.IO (hFlush, stdout)
 
-data EvaluatedResult = Print String | Exit
+data EvaluatedResult = Print String | Exit | Empty
 
 main :: IO ()
 main = do
   putStr "$ "
   hFlush stdout
-  command <- read'
-  handleEval $ eval command
+  args <- read'
+  handleEval $ eval args
 
 read' :: IO String
 read' = getLine
 
 eval :: String -> EvaluatedResult
-eval command = case command of
+eval args = if null args then Empty else eval' (getCommand args) (getRemainingArgs args)
+
+eval' :: String -> String -> EvaluatedResult
+eval' command remainingArgs = case command of
   "exit" -> Exit
-  otherwise -> Print $ command <> ": command not found"
+  "echo" -> Print $ remainingArgs
+  _ -> Print $ command <> ": command not found"
+
+getCommand :: String -> String
+getCommand args = head (words args)
+
+getRemainingArgs :: String -> String
+getRemainingArgs args = unwords (tail $ words args)
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
   Print str -> printAndContinue str
+  Empty -> main
   Exit -> pure ()
 
 printAndContinue :: String -> IO ()
