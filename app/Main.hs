@@ -6,7 +6,16 @@ main :: IO ()
 main = do
   putStr "$ "
   hFlush stdout
-  word <- getLine
-  putStrLn $ word <> ": command not found"
+  command <- read'
+  print' $ eval command
   hFlush stdout
-  pure ()
+  main
+
+read' :: IO String
+read' = getLine
+
+eval :: String -> String
+eval command = command <> ": command not found"
+
+print' :: String -> IO ()
+print' = putStrLn
