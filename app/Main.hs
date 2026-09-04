@@ -52,7 +52,7 @@ eval' command remainingArgs = case command of
 
 handleTypeCommand :: String -> IO String
 handleTypeCommand remainingArgs = case remainingArgs of
-  x | x `elem` ["exit", "echo", "type"] -> pure $ x <> " is a shell builtin"
+  x | x `elem` ["exit", "echo", "type", "pwd"] -> pure $ x <> " is a shell builtin"
   _ -> _findExecutable remainingArgs
 
 _findExecutable :: String -> IO String
