@@ -1,10 +1,12 @@
 module Main (main) where
 
+import Data.List (isInfixOf)
 import Debug.Trace (traceShow)
 import System.Directory (doesDirectoryExist, findExecutable, listDirectory)
 import System.Environment (lookupEnv)
 import System.FilePath (splitSearchPath, takeFileName)
 import System.IO (hFlush, stdout)
+import System.Process (callProcess)
 
 data EvaluatedResult = PrintAndContinue String | Exit | Continue
 
@@ -36,7 +38,17 @@ eval' command remainingArgs = case command of
   "type" -> do
     str <- handleTypeCommand remainingArgs
     pure $ PrintAndContinue str
-  _ -> pure $ PrintAndContinue $ command <> ": command not found"
+  otherwise -> do
+    str <- _findExecutable command
+    if "not found" `isInfixOf` str
+      then pure $ PrintAndContinue str
+      else do
+        callProcess str (words remainingArgs)
+        pure Continue
+
+-- pure $ PrintAndContinue $ command <> ": command not found"
+
+-- just above here
 
 handleTypeCommand :: String -> IO String
 handleTypeCommand remainingArgs = case remainingArgs of
