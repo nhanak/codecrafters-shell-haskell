@@ -32,21 +32,21 @@ read' = getLine
 eval :: String -> IO EvaluatedResult
 eval args = if null args then pure Continue else eval' (getCommand args) (getRemainingArgs' args)
 
-eval' :: String -> String -> IO EvaluatedResult
+eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
   "exit" -> pure Exit
-  "echo" -> pure $ PrintAndContinue args
+  "echo" -> pure $ PrintAndContinue (unwords args)
   "pwd" -> PrintAndContinue <$> getCurrentDirectory
-  "cd" -> handleChangeDirectoryCommand args
+  "cd" -> handleChangeDirectoryCommand (unwords args)
   "type" -> do
-    str <- handleTypeCommand args
+    str <- handleTypeCommand (unwords args)
     pure $ PrintAndContinue str
   otherwise -> do
     str <- _findExecutable command
     if "not found" `isInfixOf` str
       then pure $ PrintAndContinue str
       else do
-        callProcess (takeFileName str) (words args)
+        callProcess (takeFileName str) args
         pure Continue
 
 -- args is one big string
@@ -104,10 +104,10 @@ trim = dropWhileEnd isSpace . dropWhile isSpace
 mapEveryOther :: (a -> a) -> [a] -> [a]
 mapEveryOther f xs = zipWith ($) (cycle [f, id]) xs
 
-getRemainingArgs' :: String -> String
+getRemainingArgs' :: String -> [String]
 getRemainingArgs' args =
   let (first, rest) = break (== ' ') args
-   in unwords (filter (/= "") (mapEveryOther (\x -> unwords $ words x) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest))))
+   in filter (/= "") (mapEveryOther (\x -> unwords $ words x) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest)))
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
