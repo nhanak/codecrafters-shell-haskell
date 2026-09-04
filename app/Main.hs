@@ -2,9 +2,8 @@ module Main (main) where
 
 import Data.List (isInfixOf)
 import Debug.Trace (traceShow)
-import System.Directory (doesDirectoryExist, findExecutable, listDirectory)
-import System.Environment (lookupEnv)
-import System.FilePath (splitSearchPath, takeFileName)
+import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, listDirectory)
+import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (callProcess)
 
@@ -35,6 +34,7 @@ eval' :: String -> String -> IO EvaluatedResult
 eval' command remainingArgs = case command of
   "exit" -> pure Exit
   "echo" -> pure $ PrintAndContinue remainingArgs
+  "pwd" -> PrintAndContinue <$> getCurrentDirectory
   "type" -> do
     str <- handleTypeCommand remainingArgs
     pure $ PrintAndContinue str
