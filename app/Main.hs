@@ -43,7 +43,7 @@ eval' command remainingArgs = case command of
     if "not found" `isInfixOf` str
       then pure $ PrintAndContinue str
       else do
-        callProcess str (words remainingArgs)
+        callProcess (takeFileName str) (words remainingArgs)
         pure Continue
 
 -- pure $ PrintAndContinue $ command <> ": command not found"
