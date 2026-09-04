@@ -2,7 +2,7 @@ module Main (main) where
 
 import Data.List (isInfixOf)
 import Debug.Trace (traceShow)
-import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, listDirectory)
+import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, listDirectory, setCurrentDirectory)
 import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (callProcess)
@@ -35,6 +35,7 @@ eval' command remainingArgs = case command of
   "exit" -> pure Exit
   "echo" -> pure $ PrintAndContinue remainingArgs
   "pwd" -> PrintAndContinue <$> getCurrentDirectory
+  "cd" -> handleChangeDirectoryCommand remainingArgs
   "type" -> do
     str <- handleTypeCommand remainingArgs
     pure $ PrintAndContinue str
@@ -46,13 +47,18 @@ eval' command remainingArgs = case command of
         callProcess (takeFileName str) (words remainingArgs)
         pure Continue
 
--- pure $ PrintAndContinue $ command <> ": command not found"
-
--- just above here
+handleChangeDirectoryCommand :: String -> IO EvaluatedResult
+handleChangeDirectoryCommand path = do
+  directoryExists <- doesDirectoryExist path
+  case directoryExists of
+    False -> pure $ PrintAndContinue ("cd: " <> path <> ": No such file or directory")
+    True -> do
+      setCurrentDirectory path
+      pure Continue
 
 handleTypeCommand :: String -> IO String
 handleTypeCommand remainingArgs = case remainingArgs of
-  x | x `elem` ["exit", "echo", "type", "pwd"] -> pure $ x <> " is a shell builtin"
+  x | x `elem` ["exit", "echo", "type", "pwd", "cd"] -> pure $ x <> " is a shell builtin"
   _ -> _findExecutable remainingArgs
 
 _findExecutable :: String -> IO String
