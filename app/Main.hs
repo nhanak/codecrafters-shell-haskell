@@ -101,13 +101,13 @@ getCommand args = head (words args)
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
-mapEveryOther :: (a -> a) -> [a] -> [a]
-mapEveryOther f xs = zipWith ($) (cycle [f, id]) xs
+mapEveryOther :: (a -> [a]) -> (a -> [a]) -> [a] -> [[a]]
+mapEveryOther f g xs = zipWith ($) (cycle [f, g]) xs
 
 getRemainingArgs' :: String -> [String]
 getRemainingArgs' args =
   let (first, rest) = break (== ' ') args
-   in filter (/= "") (mapEveryOther (\x -> unwords $ words x) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest)))
+   in filter (/= "") (concat (mapEveryOther (\x -> words x) (\y -> [y]) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest))))
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
