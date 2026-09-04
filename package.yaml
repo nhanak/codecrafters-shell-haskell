@@ -15,6 +15,7 @@ dependencies:
   - process
   - directory
   - filepath
+  - split
 
 executables:
   codecrafters-shell-exe:

@@ -1,33 +1,54 @@
 module Main (main) where
 
+import Debug.Trace (traceShow)
+import System.Directory (doesDirectoryExist, findExecutable, listDirectory)
+import System.Environment (lookupEnv)
+import System.FilePath (splitSearchPath, takeFileName)
 import System.IO (hFlush, stdout)
 
 data EvaluatedResult = PrintAndContinue String | Exit | Continue
+
+splitOnChar :: Char -> String -> [String]
+splitOnChar _ "" = [""]
+splitOnChar c xs =
+  case break (== c) xs of
+    (left, "") -> [left]
+    (left, _ : right) -> left : splitOnChar c right
 
 main :: IO ()
 main = do
   putStr "$ "
   hFlush stdout
   args <- read'
-  handleEval $ eval args
+  evaluatedResult <- eval args
+  handleEval evaluatedResult
 
 read' :: IO String
 read' = getLine
 
-eval :: String -> EvaluatedResult
-eval args = if null args then Continue else eval' (getCommand args) (getRemainingArgs args)
+eval :: String -> IO EvaluatedResult
+eval args = if null args then pure Continue else eval' (getCommand args) (getRemainingArgs args)
 
-eval' :: String -> String -> EvaluatedResult
+eval' :: String -> String -> IO EvaluatedResult
 eval' command remainingArgs = case command of
-  "exit" -> Exit
-  "echo" -> PrintAndContinue $ remainingArgs
-  "type" -> PrintAndContinue $ handleTypeCommand remainingArgs
-  _ -> PrintAndContinue $ command <> ": command not found"
+  "exit" -> pure Exit
+  "echo" -> pure $ PrintAndContinue remainingArgs
+  "type" -> do
+    str <- handleTypeCommand remainingArgs
+    pure $ PrintAndContinue str
+  _ -> pure $ PrintAndContinue $ command <> ": command not found"
 
-handleTypeCommand :: String -> String
+handleTypeCommand :: String -> IO String
 handleTypeCommand remainingArgs = case remainingArgs of
-  x | x `elem` ["exit", "echo", "type"] -> x <> " is a shell builtin"
-  _ -> remainingArgs <> ": not found"
+  x | x `elem` ["exit", "echo", "type"] -> pure $ x <> " is a shell builtin"
+  _ -> _findExecutable remainingArgs
+
+_findExecutable :: String -> IO String
+_findExecutable remainingArgs = do
+  maybeFilePath <- findExecutable remainingArgs
+  case maybeFilePath of
+    Just filePath -> pure filePath
+    Nothing -> pure (remainingArgs <> ": not found")
 
 getCommand :: String -> String
 getCommand args = head (words args)
