@@ -107,7 +107,7 @@ mapEveryOther f xs = zipWith ($) (cycle [f, id]) xs
 getRemainingArgs' :: String -> String
 getRemainingArgs' args =
   let (first, rest) = break (== ' ') args
-   in unwords $ filter (/= "") (mapEveryOther (\x -> unwords $ words x) (getAllSubstrings '\'' '\'' (trim rest)))
+   in unwords (filter (/= "") (mapEveryOther (\x -> unwords $ words x) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest))))
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
@@ -120,3 +120,8 @@ printAndContinue str = do
   putStrLn str
   hFlush stdout
   main
+
+replaceDouble :: Char -> String -> String
+replaceDouble char [x] = [x]
+replaceDouble char (x : y : xs) = if (x == char) && (y == char) then replaceDouble char xs else x : replaceDouble char (y : xs)
+replaceDouble char null = ""
