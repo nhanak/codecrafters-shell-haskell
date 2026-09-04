@@ -15,6 +15,7 @@ dependencies:
   - process
   - directory
   - filepath
+  - text
   - split
 
 executables:

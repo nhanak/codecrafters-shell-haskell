@@ -1,8 +1,9 @@
 module Main (main) where
 
 import Data.List (isInfixOf)
+import qualified Data.Text as T
 import Debug.Trace (traceShow)
-import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, listDirectory, setCurrentDirectory)
+import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
 import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (callProcess)
@@ -31,29 +32,35 @@ eval :: String -> IO EvaluatedResult
 eval args = if null args then pure Continue else eval' (getCommand args) (getRemainingArgs args)
 
 eval' :: String -> String -> IO EvaluatedResult
-eval' command remainingArgs = case command of
+eval' command args = case command of
   "exit" -> pure Exit
-  "echo" -> pure $ PrintAndContinue remainingArgs
+  "echo" -> pure $ PrintAndContinue args
   "pwd" -> PrintAndContinue <$> getCurrentDirectory
-  "cd" -> handleChangeDirectoryCommand remainingArgs
+  "cd" -> handleChangeDirectoryCommand args
   "type" -> do
-    str <- handleTypeCommand remainingArgs
+    str <- handleTypeCommand args
     pure $ PrintAndContinue str
   otherwise -> do
     str <- _findExecutable command
     if "not found" `isInfixOf` str
       then pure $ PrintAndContinue str
       else do
-        callProcess (takeFileName str) (words remainingArgs)
+        callProcess (takeFileName str) (words args)
         pure Continue
+
+replaceString :: String -> String -> String -> String
+replaceString old new haystack =
+  T.unpack $ T.replace (T.pack old) (T.pack new) (T.pack haystack)
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
-  directoryExists <- doesDirectoryExist path
+  homeDir <- getHomeDirectory
+  let parsedPath = replaceString "~" homeDir path
+  directoryExists <- doesDirectoryExist parsedPath
   case directoryExists of
-    False -> pure $ PrintAndContinue ("cd: " <> path <> ": No such file or directory")
+    False -> pure $ PrintAndContinue ("cd: " <> parsedPath <> ": No such file or directory")
     True -> do
-      setCurrentDirectory path
+      setCurrentDirectory parsedPath
       pure Continue
 
 handleTypeCommand :: String -> IO String
