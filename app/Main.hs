@@ -11,13 +11,6 @@ import System.Process (callProcess)
 
 data EvaluatedResult = PrintAndContinue String | Exit | Continue
 
-splitOnChar :: Char -> String -> [String]
-splitOnChar _ "" = [""]
-splitOnChar c xs =
-  case break (== c) xs of
-    (left, "") -> [left]
-    (left, _ : right) -> left : splitOnChar c right
-
 main :: IO ()
 main = do
   putStr "$ "
@@ -30,7 +23,7 @@ read' :: IO String
 read' = getLine
 
 eval :: String -> IO EvaluatedResult
-eval args = if null args then pure Continue else eval' (getCommand args) (getRemainingArgs' args)
+eval args = if null args then pure Continue else eval' (getCommand args) (getArgs args)
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
@@ -49,12 +42,6 @@ eval' command args = case command of
         callProcess (takeFileName str) args
         pure Continue
 
--- args is one big string
--- args can have values enclosed between ''
--- treating args as a str is not going to work, to much random processing in random locations
--- should treat args as [String]
--- need to change getRemainingArgs
-
 replaceString :: String -> String -> String -> String
 replaceString old new haystack =
   T.unpack $ T.replace (T.pack old) (T.pack new) (T.pack haystack)
@@ -63,7 +50,23 @@ getAllSubstrings :: Char -> Char -> String -> [String]
 getAllSubstrings _ _ [] = []
 getAllSubstrings start end str =
   let initial = takeWhile (/= start) str
-   in [initial] ++ getAllSubstrings start end (safeTail (dropWhile (/= start) str))
+      remaining = safeTail (dropWhile (/= start) str)
+   in [initial] ++ getAllSubstrings start end remaining
+
+takeUntilEnclosed :: String -> String -> Bool -> (String, String)
+takeUntilEnclosed remaining enclosed seenCloseChar =
+  if null remaining || (seenCloseChar && head remaining == ' ')
+    then (enclosed, remaining)
+    else case remaining of
+      ('"' : rest) -> takeUntilEnclosed rest enclosed True
+      _ -> takeUntilEnclosed (tail remaining) (enclosed ++ [head remaining]) seenCloseChar
+
+getAllSubstrings' :: Char -> String -> [String]
+getAllSubstrings' _ [] = []
+getAllSubstrings' start str =
+  let initial = takeWhile (/= start) str
+      (enclosed, remaining) = takeUntilEnclosed (safeTail (dropWhile (/= start) str)) "" False
+   in [initial] ++ [enclosed] ++ getAllSubstrings' start remaining
 
 safeTail :: [a] -> [a]
 safeTail [] = []
@@ -95,9 +98,6 @@ _findExecutable args = do
 getCommand :: String -> String
 getCommand args = head (words args)
 
--- getRemainingArgs :: String -> String
--- getRemainingArgs args = unwords (tail $ words args)
-
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
 
@@ -105,9 +105,22 @@ mapEveryOther :: (a -> [a]) -> (a -> [a]) -> [a] -> [[a]]
 mapEveryOther f g xs = zipWith ($) (cycle [f, g]) xs
 
 getRemainingArgs' :: String -> [String]
-getRemainingArgs' args =
+getRemainingArgs' args = filter (/= "") (concat (mapEveryOther (\x -> words x) (\y -> [y]) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim args))))
+
+breakArgsOnDoubleQuotes :: String -> [String]
+breakArgsOnDoubleQuotes args = getAllSubstrings' '"' (replaceDouble '"' args)
+
+getArgs :: String -> [String]
+getArgs argsWithCommand =
+  let args = getArgsWithoutCommand argsWithCommand
+      argsBrokenOnDoubleQuotes = breakArgsOnDoubleQuotes args
+      argsBrokenOnDoubleQuotesAndSingleQuotes = filter (/= "") (concat $ mapEveryOther getRemainingArgs' (: []) argsBrokenOnDoubleQuotes)
+   in argsBrokenOnDoubleQuotesAndSingleQuotes
+
+getArgsWithoutCommand :: String -> String
+getArgsWithoutCommand args =
   let (first, rest) = break (== ' ') args
-   in filter (/= "") (concat (mapEveryOther (\x -> words x) (\y -> [y]) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim rest))))
+   in trim rest
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
