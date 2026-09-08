@@ -1,19 +1,11 @@
-module ArgsUtils (getCommand, getArgs) where
+module ArgsUtils (tokenize) where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
 import Debug.Trace (traceShow)
 
-getCommand :: String -> String
-getCommand args = head (words args)
-
-getArgs :: String -> [String]
-getArgs argsWithCommand = filter (/= "") (tokenize $ (replaceDouble '\'' . replaceDouble '\"') (trim argsWithCommand))
-
-getArgsWithoutCommand :: String -> String
-getArgsWithoutCommand args =
-  let (first, rest) = break (== ' ') args
-   in trim rest
+tokenize :: String -> [String]
+tokenize args = filter (/= "") (tokenize' $ (replaceDouble '\'' . replaceDouble '\"') (trim args))
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
@@ -27,8 +19,8 @@ data TokenizerState = Normal | SingleQuotes | DoubleQuotesOpen | DoubleQuotesClo
 
 data TokenizerAcc = TokenizerAcc {_tokenizerState :: TokenizerState, _curToken :: String, _argsList :: [String]}
 
-tokenize :: String -> [String]
-tokenize args =
+tokenize' :: String -> [String]
+tokenize' args =
   let tokenizerAcc = foldl tokenCombiner (TokenizerAcc {_tokenizerState = Normal, _curToken = "", _argsList = []}) args
       curToken = _curToken tokenizerAcc
       tokenizedArgs = _argsList tokenizerAcc
