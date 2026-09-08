@@ -29,7 +29,7 @@ handleEval evaluatedResult = case evaluatedResult of
 
 printAndContinue :: String -> IO ()
 printAndContinue str = do
-  putStr str
+  putStrLn str
   hFlush stdout
   main
 
@@ -69,7 +69,7 @@ getRedirectFile args tokenizedArgs =
       val -> Just (last val)
 
 tokenIsNotRedirectOperator :: String -> Bool
-tokenIsNotRedirectOperator str = str /= ">" && str /= "1>"
+tokenIsNotRedirectOperator token = token /= ">" && token /= "1>"
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
@@ -80,6 +80,12 @@ eval' command args = case command of
   "type" -> handleTypeCommand (unwords args)
   otherwise -> handleUnknownCommand command args
 
+removeLastNewline :: String -> String
+removeLastNewline [] = []
+removeLastNewline s
+  | last s == '\n' = init s
+  | otherwise = s
+
 handleUnknownCommand :: String -> [String] -> IO EvaluatedResult
 handleUnknownCommand command args = do
   str <- _findExecutable command
@@ -87,7 +93,7 @@ handleUnknownCommand command args = do
     then pure $ PrintStdErrAndContinue str
     else do
       stdOut <- readProcess (takeFileName str) args ""
-      pure (PrintStdOutAndContinue stdOut)
+      pure (PrintStdOutAndContinue (removeLastNewline stdOut))
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
