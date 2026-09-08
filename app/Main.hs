@@ -1,7 +1,7 @@
 module Main (main) where
 
-import Data.Char (isSpace)
-import Data.List (dropWhileEnd, isInfixOf)
+import ArgsUtils (getArgs, getCommand)
+import Data.List (isInfixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
@@ -15,112 +15,9 @@ main :: IO ()
 main = do
   putStr "$ "
   hFlush stdout
-  args <- read'
+  args <- getLine
   evaluatedResult <- eval args
   handleEval evaluatedResult
-
-read' :: IO String
-read' = getLine
-
-eval :: String -> IO EvaluatedResult
-eval args = if null args then pure Continue else eval' (getCommand args) (getArgs args)
-
-eval' :: String -> [String] -> IO EvaluatedResult
-eval' command args = case command of
-  "exit" -> pure Exit
-  "echo" -> pure $ PrintAndContinue (unwords args)
-  "pwd" -> PrintAndContinue <$> getCurrentDirectory
-  "cd" -> handleChangeDirectoryCommand (unwords args)
-  "type" -> do
-    str <- handleTypeCommand (unwords args)
-    pure $ PrintAndContinue str
-  otherwise -> do
-    str <- _findExecutable command
-    if "not found" `isInfixOf` str
-      then pure $ PrintAndContinue str
-      else do
-        callProcess (takeFileName str) args
-        pure Continue
-
-replaceString :: String -> String -> String -> String
-replaceString old new haystack =
-  T.unpack $ T.replace (T.pack old) (T.pack new) (T.pack haystack)
-
-getAllSubstrings :: Char -> Char -> String -> [String]
-getAllSubstrings _ _ [] = []
-getAllSubstrings start end str =
-  let initial = takeWhile (/= start) str
-      remaining = safeTail (dropWhile (/= start) str)
-   in [initial] ++ getAllSubstrings start end remaining
-
-takeUntilEnclosed :: String -> String -> Bool -> (String, String)
-takeUntilEnclosed remaining enclosed seenCloseChar =
-  if null remaining || (seenCloseChar && head remaining == ' ')
-    then (enclosed, remaining)
-    else case remaining of
-      ('"' : rest) -> takeUntilEnclosed rest enclosed True
-      _ -> takeUntilEnclosed (tail remaining) (enclosed ++ [head remaining]) seenCloseChar
-
-getAllSubstrings' :: Char -> String -> [String]
-getAllSubstrings' _ [] = []
-getAllSubstrings' start str =
-  let initial = takeWhile (/= start) str
-      (enclosed, remaining) = takeUntilEnclosed (safeTail (dropWhile (/= start) str)) "" False
-   in [initial] ++ [enclosed] ++ getAllSubstrings' start remaining
-
-safeTail :: [a] -> [a]
-safeTail [] = []
-safeTail (x : xs) = xs
-
-handleChangeDirectoryCommand :: String -> IO EvaluatedResult
-handleChangeDirectoryCommand path = do
-  homeDir <- getHomeDirectory
-  let parsedPath = replaceString "~" homeDir path
-  directoryExists <- doesDirectoryExist parsedPath
-  case directoryExists of
-    False -> pure $ PrintAndContinue ("cd: " <> parsedPath <> ": No such file or directory")
-    True -> do
-      setCurrentDirectory parsedPath
-      pure Continue
-
-handleTypeCommand :: String -> IO String
-handleTypeCommand args = case args of
-  x | x `elem` ["exit", "echo", "type", "pwd", "cd"] -> pure $ x <> " is a shell builtin"
-  _ -> _findExecutable args
-
-_findExecutable :: String -> IO String
-_findExecutable args = do
-  maybeFilePath <- findExecutable args
-  case maybeFilePath of
-    Just filePath -> pure filePath
-    Nothing -> pure (args <> ": not found")
-
-getCommand :: String -> String
-getCommand args = head (words args)
-
-trim :: String -> String
-trim = dropWhileEnd isSpace . dropWhile isSpace
-
-mapEveryOther :: (a -> [a]) -> (a -> [a]) -> [a] -> [[a]]
-mapEveryOther f g xs = zipWith ($) (cycle [f, g]) xs
-
-getRemainingArgs' :: String -> [String]
-getRemainingArgs' args = filter (/= "") (concat (mapEveryOther (\x -> words x) (\y -> [y]) (getAllSubstrings '\'' '\'' (replaceDouble '\'' $ trim args))))
-
-breakArgsOnDoubleQuotes :: String -> [String]
-breakArgsOnDoubleQuotes args = getAllSubstrings' '"' (replaceDouble '"' args)
-
-getArgs :: String -> [String]
-getArgs argsWithCommand =
-  let args = getArgsWithoutCommand argsWithCommand
-      argsBrokenOnDoubleQuotes = breakArgsOnDoubleQuotes args
-      argsBrokenOnDoubleQuotesAndSingleQuotes = filter (/= "") (concat $ mapEveryOther getRemainingArgs' (: []) argsBrokenOnDoubleQuotes)
-   in argsBrokenOnDoubleQuotesAndSingleQuotes
-
-getArgsWithoutCommand :: String -> String
-getArgsWithoutCommand args =
-  let (first, rest) = break (== ' ') args
-   in trim rest
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
@@ -134,7 +31,52 @@ printAndContinue str = do
   hFlush stdout
   main
 
-replaceDouble :: Char -> String -> String
-replaceDouble char [x] = [x]
-replaceDouble char (x : y : xs) = if (x == char) && (y == char) then replaceDouble char xs else x : replaceDouble char (y : xs)
-replaceDouble char null = ""
+eval :: String -> IO EvaluatedResult
+eval args = if null args then pure Continue else eval' (getCommand args) (getArgs args)
+
+eval' :: String -> [String] -> IO EvaluatedResult
+eval' command args = case command of
+  "exit" -> pure Exit
+  "echo" -> pure $ PrintAndContinue (unwords args)
+  "pwd" -> PrintAndContinue <$> getCurrentDirectory
+  "cd" -> handleChangeDirectoryCommand (unwords args)
+  "type" -> handleTypeCommand (unwords args)
+  otherwise -> handleUnknownCommand command args
+
+handleUnknownCommand :: String -> [String] -> IO EvaluatedResult
+handleUnknownCommand command args = do
+  str <- _findExecutable command
+  if "not found" `isInfixOf` str
+    then pure $ PrintAndContinue str
+    else do
+      callProcess (takeFileName str) args
+      pure Continue
+
+handleChangeDirectoryCommand :: String -> IO EvaluatedResult
+handleChangeDirectoryCommand path = do
+  homeDir <- getHomeDirectory
+  let parsedPath = replaceString "~" homeDir path
+  directoryExists <- doesDirectoryExist parsedPath
+  case directoryExists of
+    False -> pure $ PrintAndContinue ("cd: " <> parsedPath <> ": No such file or directory")
+    True -> do
+      setCurrentDirectory parsedPath
+      pure Continue
+
+handleTypeCommand :: String -> IO EvaluatedResult
+handleTypeCommand args = case args of
+  x | x `elem` ["exit", "echo", "type", "pwd", "cd"] -> pure $ PrintAndContinue (x <> " is a shell builtin")
+  _ -> do
+    executable <- _findExecutable args
+    pure $ PrintAndContinue executable
+
+replaceString :: String -> String -> String -> String
+replaceString old new haystack =
+  T.unpack $ T.replace (T.pack old) (T.pack new) (T.pack haystack)
+
+_findExecutable :: String -> IO String
+_findExecutable args = do
+  maybeFilePath <- findExecutable args
+  case maybeFilePath of
+    Just filePath -> pure filePath
+    Nothing -> pure (args <> ": not found")
