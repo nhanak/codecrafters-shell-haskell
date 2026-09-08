@@ -29,7 +29,7 @@ handleEval evaluatedResult = case evaluatedResult of
 
 printAndContinue :: String -> IO ()
 printAndContinue str = do
-  putStrLn str
+  putStr str
   hFlush stdout
   main
 
@@ -62,7 +62,7 @@ getArgsAndRedirectFile tokenizedArgs =
 
 getRedirectFile :: [String] -> [String] -> Maybe String
 getRedirectFile args tokenizedArgs =
-  if (length args == length tokenizedArgs || null args)
+  if (length args == length tokenizedArgs || null tokenizedArgs)
     then Nothing
     else case drop 1 (dropWhile tokenIsNotRedirectOperator tokenizedArgs) of
       [] -> Nothing

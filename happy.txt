@@ -2,6 +2,7 @@ README.md
 app
 codecrafters-shell.cabal
 codecrafters.yml
+happy.txt
 package.yaml
 stack.yaml
 stack.yaml.lock
