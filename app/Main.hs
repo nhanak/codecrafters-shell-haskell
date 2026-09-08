@@ -7,7 +7,7 @@ import Debug.Trace (traceShow)
 import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
 import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
-import System.Process (callProcess)
+import System.Process (callProcess, readProcess)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String deriving (Show)
 
@@ -86,8 +86,8 @@ handleUnknownCommand command args = do
   if "not found" `isInfixOf` str
     then pure $ PrintStdErrAndContinue str
     else do
-      callProcess (takeFileName str) args
-      pure Continue
+      stdOut <- readProcess (takeFileName str) args ""
+      pure (PrintStdOutAndContinue stdOut)
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do

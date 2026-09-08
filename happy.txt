@@ -1,1 +1,8 @@
-blueberry
+README.md
+app
+codecrafters-shell.cabal
+codecrafters.yml
+package.yaml
+stack.yaml
+stack.yaml.lock
+your_program.sh
