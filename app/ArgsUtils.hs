@@ -45,7 +45,7 @@ tokenCombiner acc char = case _tokenizerState acc of
 handleNormalTokenizerState :: TokenizerAcc -> Char -> TokenizerAcc
 handleNormalTokenizerState acc char = case char of
   '\\' -> TokenizerAcc {_tokenizerState = Escape, _curToken = _curToken acc, _argsList = _argsList acc}
-  '\'' -> TokenizerAcc {_tokenizerState = SingleQuotes, _curToken = "", _argsList = _argsList acc ++ [_curToken acc]}
+  '\'' -> TokenizerAcc {_tokenizerState = SingleQuotes, _curToken = _curToken acc, _argsList = _argsList acc}
   '\"' -> TokenizerAcc {_tokenizerState = DoubleQuotesOpen, _curToken = "", _argsList = _argsList acc ++ [_curToken acc]}
   ' ' -> TokenizerAcc {_tokenizerState = Normal, _curToken = "", _argsList = _argsList acc ++ [_curToken acc]}
   _ -> TokenizerAcc {_tokenizerState = Normal, _curToken = _curToken acc ++ [char], _argsList = _argsList acc}
