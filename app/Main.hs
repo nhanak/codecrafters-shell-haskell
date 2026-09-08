@@ -96,7 +96,7 @@ handleUnknownCommand command args = do
       (exitCode, stdOut, err) <- readProcessWithExitCode (takeFileName str) args ""
       case exitCode of
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
-        ExitFailure _ -> pure (PrintStdErrAndContinue err)
+        ExitFailure _ -> pure (PrintStdErrAndContinue (removeLastNewline err))
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
