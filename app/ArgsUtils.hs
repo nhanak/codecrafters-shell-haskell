@@ -8,7 +8,7 @@ getCommand :: String -> String
 getCommand args = head (words args)
 
 getArgs :: String -> [String]
-getArgs argsWithCommand = filter (/= "") (tokenize $ (replaceDouble '\'' . replaceDouble '\"') (trim $ getArgsWithoutCommand argsWithCommand))
+getArgs argsWithCommand = filter (/= "") (tokenize $ (replaceDouble '\'' . replaceDouble '\"') (trim argsWithCommand))
 
 getArgsWithoutCommand :: String -> String
 getArgsWithoutCommand args =

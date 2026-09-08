@@ -32,7 +32,9 @@ printAndContinue str = do
   main
 
 eval :: String -> IO EvaluatedResult
-eval args = if null args then pure Continue else eval' (getCommand args) (getArgs args)
+eval args = if null args then pure Continue else eval' (head tokenizedArgs) (tail tokenizedArgs)
+  where
+    tokenizedArgs = getArgs args
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
