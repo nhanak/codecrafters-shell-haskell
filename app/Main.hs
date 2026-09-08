@@ -59,11 +59,11 @@ modifyEvaluatedResultWithRedirectFile :: IO EvaluatedResult -> Maybe String -> I
 modifyEvaluatedResultWithRedirectFile ioEvaluatedResult file = do
   evaluatedResult <- ioEvaluatedResult
   case file of
-    Nothing -> ioEvaluatedResult
+    Nothing -> pure evaluatedResult
     Just fileName -> case evaluatedResult of
       (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str fileName)
       (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut fileName stdErr)
-      _ -> ioEvaluatedResult
+      _ -> pure evaluatedResult
 
 getArgsAndRedirectFile :: [String] -> ([String], Maybe String)
 getArgsAndRedirectFile tokenizedArgs =
@@ -89,7 +89,7 @@ eval' command args = case command of
   "pwd" -> PrintStdOutAndContinue <$> getCurrentDirectory
   "cd" -> handleChangeDirectoryCommand (unwords args)
   "type" -> handleTypeCommand (unwords args)
-  otherwise -> handleUnknownCommand command args
+  _ -> handleUnknownCommand command args
 
 removeLastNewline :: String -> String
 removeLastNewline [] = []
@@ -113,6 +113,7 @@ handleChangeDirectoryCommand path = do
   homeDir <- getHomeDirectory
   let parsedPath = replaceString "~" homeDir path
   directoryExists <- doesDirectoryExist parsedPath
+  curDir <- getCurrentDirectory
   case directoryExists of
     False -> pure $ PrintStdErrAndContinue ("cd: " <> parsedPath <> ": No such file or directory")
     True -> do
