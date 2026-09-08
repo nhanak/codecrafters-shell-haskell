@@ -10,7 +10,7 @@ import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (readProcessWithExitCode)
 
-data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String deriving (Show)
+data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String | RedirectStdOutAndPrintStdErrAndContinue String String String | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
 
 main :: IO ()
 main = do
@@ -22,9 +22,11 @@ main = do
 
 handleEval :: EvaluatedResult -> IO ()
 handleEval evaluatedResult = case evaluatedResult of
-  PrintStdOutAndContinue str -> printAndContinue str
-  PrintStdErrAndContinue str -> printAndContinue str
-  RedirectStdOutAndContinue str file -> redirectStdOutAndContinue str file
+  PrintStdOutAndContinue stdOut -> printAndContinue stdOut
+  PrintStdErrAndContinue stdErr -> printAndContinue stdErr
+  PrintStdOutAndPrintStdErrAndContinue stdOut stdErr -> printAndContinue stdErr
+  RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr -> redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr
+  RedirectStdOutAndContinue stdOut file -> redirectStdOutAndContinue stdOut file
   Continue -> main
   Exit -> pure ()
 
@@ -35,8 +37,15 @@ printAndContinue str = do
   main
 
 redirectStdOutAndContinue :: String -> String -> IO ()
-redirectStdOutAndContinue str file = do
-  writeFile file str
+redirectStdOutAndContinue stdOut file = do
+  writeFile file stdOut
+  main
+
+redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> IO ()
+redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr = do
+  writeFile file stdOut
+  putStrLn stdErr
+  hFlush stdout
   main
 
 eval :: String -> IO EvaluatedResult
@@ -53,6 +62,7 @@ modifyEvaluatedResultWithRedirectFile ioEvaluatedResult file = do
     Nothing -> ioEvaluatedResult
     Just fileName -> case evaluatedResult of
       (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str fileName)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut stdErr fileName)
       _ -> ioEvaluatedResult
 
 getArgsAndRedirectFile :: [String] -> ([String], Maybe String)
@@ -96,7 +106,7 @@ handleUnknownCommand command args = do
       (exitCode, stdOut, err) <- readProcessWithExitCode (takeFileName str) args ""
       case exitCode of
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
-        ExitFailure _ -> pure (PrintStdErrAndContinue (removeLastNewline err))
+        ExitFailure _ -> pure (PrintStdOutAndPrintStdErrAndContinue (removeLastNewline stdOut) (removeLastNewline err))
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
