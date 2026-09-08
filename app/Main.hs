@@ -5,9 +5,10 @@ import Data.List (isInfixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
+import System.Exit (ExitCode (..))
 import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
-import System.Process (callProcess, readProcess)
+import System.Process (readProcessWithExitCode)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String deriving (Show)
 
@@ -92,8 +93,10 @@ handleUnknownCommand command args = do
   if "not found" `isInfixOf` str
     then pure $ PrintStdErrAndContinue str
     else do
-      stdOut <- readProcess (takeFileName str) args ""
-      pure (PrintStdOutAndContinue (removeLastNewline stdOut))
+      (exitCode, stdOut, err) <- readProcessWithExitCode (takeFileName str) args ""
+      case exitCode of
+        ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
+        ExitFailure _ -> pure Continue
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
