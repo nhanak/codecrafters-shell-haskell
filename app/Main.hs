@@ -62,7 +62,7 @@ modifyEvaluatedResultWithRedirectFile ioEvaluatedResult file = do
     Nothing -> ioEvaluatedResult
     Just fileName -> case evaluatedResult of
       (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str fileName)
-      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut stdErr fileName)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut fileName stdErr)
       _ -> ioEvaluatedResult
 
 getArgsAndRedirectFile :: [String] -> ([String], Maybe String)
