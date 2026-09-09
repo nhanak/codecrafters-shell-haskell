@@ -97,7 +97,7 @@ getArgsAndRedirectStdToFile tokenizedArgs =
    in (args, redirectStdToFile)
 
 getRedirectMode :: [String] -> RedirectMode
-getRedirectMode args = if (">>") `elem` args || ("1>>") `elem` args then Append else Overwrite
+getRedirectMode args = if (">>") `elem` args || ("1>>") `elem` args || ("2>>") `elem` args then Append else Overwrite
 
 getRedirectStdToFile :: [String] -> Maybe String -> RedirectStdToFile
 getRedirectStdToFile args Nothing = NoRedirect
@@ -114,10 +114,10 @@ getRedirectFile args tokenizedArgs =
       val -> Just (last val)
 
 hasStdErrRedirectOperator :: [String] -> Bool
-hasStdErrRedirectOperator args = "2>" `elem` args
+hasStdErrRedirectOperator args = "2>" `elem` args || "2>>" `elem` args
 
 tokenIsNotRedirectOperator :: String -> Bool
-tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>" && token /= ">>" && token /= "1>>"
+tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>" && token /= ">>" && token /= "1>>" && token /= "2>>"
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
