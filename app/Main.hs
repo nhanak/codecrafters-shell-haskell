@@ -20,6 +20,7 @@ main = do
   hFlush stdout
   args <- getLine
   evaluatedResult <- eval args
+  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
@@ -70,6 +71,7 @@ modifyEvaluatedResultWithRedirectFile ioEvaluatedResult redirectStdToFile = do
   case redirectStdToFile of
     NoRedirect -> pure evaluatedResult
     RedirectStdErrToFile file -> case evaluatedResult of
+      (PrintStdOutAndContinue str) -> pure (PrintStdOutAndRedirectStdErrAndContinue str file "")
       (PrintStdErrAndContinue str) -> pure (RedirectStdErrAndContinue str file)
       (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr)
       _ -> pure evaluatedResult
