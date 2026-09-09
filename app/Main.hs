@@ -10,7 +10,9 @@ import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (readProcessWithExitCode)
 
-data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String | RedirectStdOutAndPrintStdErrAndContinue String String String | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
+data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String | RedirectStdErrAndContinue String String | PrintStdOutAndRedirectStdErrAndContinue String String String | RedirectStdOutAndPrintStdErrAndContinue String String String | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
+
+data RedirectStdToFile = RedirectStdOutToFile String | RedirectStdErrToFile String | NoRedirect deriving (Show)
 
 main :: IO ()
 main = do
@@ -26,7 +28,9 @@ handleEval evaluatedResult = case evaluatedResult of
   PrintStdErrAndContinue stdErr -> printAndContinue stdErr
   PrintStdOutAndPrintStdErrAndContinue stdOut stdErr -> printAndContinue stdErr
   RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr -> redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr
+  PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr -> redirectStdOutAndPrintStdErrAndContinue stdErr file stdOut
   RedirectStdOutAndContinue stdOut file -> redirectStdOutAndContinue stdOut file
+  RedirectStdErrAndContinue stdErr file -> redirectStdOutAndContinue stdErr file
   Continue -> main
   Exit -> pure ()
 
@@ -36,6 +40,12 @@ printAndContinue str = do
   hFlush stdout
   main
 
+printStrIfNonEmpty :: String -> IO ()
+printStrIfNonEmpty "" = pure ()
+printStrIfNonEmpty str = do
+  putStrLn str
+  hFlush stdout
+
 redirectStdOutAndContinue :: String -> String -> IO ()
 redirectStdOutAndContinue stdOut file = do
   writeFile file stdOut
@@ -44,32 +54,40 @@ redirectStdOutAndContinue stdOut file = do
 redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> IO ()
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr = do
   writeFile file stdOut
-  putStrLn stdErr
-  hFlush stdout
+  printStrIfNonEmpty stdErr
   main
 
 eval :: String -> IO EvaluatedResult
-eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args) file
+eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args) redirectStdToFile
   where
     tokenizedArgs = tokenize untokenizedArgs
     command = head tokenizedArgs
-    (args, file) = getArgsAndRedirectFile (tail tokenizedArgs)
+    (args, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
 
-modifyEvaluatedResultWithRedirectFile :: IO EvaluatedResult -> Maybe String -> IO EvaluatedResult
-modifyEvaluatedResultWithRedirectFile ioEvaluatedResult file = do
+modifyEvaluatedResultWithRedirectFile :: IO EvaluatedResult -> RedirectStdToFile -> IO EvaluatedResult
+modifyEvaluatedResultWithRedirectFile ioEvaluatedResult redirectStdToFile = do
   evaluatedResult <- ioEvaluatedResult
-  case file of
-    Nothing -> pure evaluatedResult
-    Just fileName -> case evaluatedResult of
-      (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str fileName)
-      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut fileName stdErr)
+  case redirectStdToFile of
+    NoRedirect -> pure evaluatedResult
+    RedirectStdErrToFile file -> case evaluatedResult of
+      (PrintStdErrAndContinue str) -> pure (RedirectStdErrAndContinue str file)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr)
+      _ -> pure evaluatedResult
+    RedirectStdOutToFile file -> case evaluatedResult of
+      (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str file)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr)
       _ -> pure evaluatedResult
 
-getArgsAndRedirectFile :: [String] -> ([String], Maybe String)
-getArgsAndRedirectFile tokenizedArgs =
+getArgsAndRedirectStdToFile :: [String] -> ([String], RedirectStdToFile)
+getArgsAndRedirectStdToFile tokenizedArgs =
   let args = takeWhile tokenIsNotRedirectOperator tokenizedArgs
       file = getRedirectFile args tokenizedArgs
-   in (args, file)
+      redirectStdToFile = getRedirectStdToFile tokenizedArgs file
+   in (args, redirectStdToFile)
+
+getRedirectStdToFile :: [String] -> Maybe String -> RedirectStdToFile
+getRedirectStdToFile args Nothing = NoRedirect
+getRedirectStdToFile args (Just file) = if hasStdErrRedirectOperator args then RedirectStdErrToFile file else RedirectStdOutToFile file
 
 getRedirectFile :: [String] -> [String] -> Maybe String
 getRedirectFile args tokenizedArgs =
@@ -79,8 +97,11 @@ getRedirectFile args tokenizedArgs =
       [] -> Nothing
       val -> Just (last val)
 
+hasStdErrRedirectOperator :: [String] -> Bool
+hasStdErrRedirectOperator args = "2>" `elem` args
+
 tokenIsNotRedirectOperator :: String -> Bool
-tokenIsNotRedirectOperator token = token /= ">" && token /= "1>"
+tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>"
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
