@@ -116,7 +116,7 @@ hasStdErrRedirectOperator :: [String] -> Bool
 hasStdErrRedirectOperator args = "2>" `elem` args
 
 tokenIsNotRedirectOperator :: String -> Bool
-tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>"
+tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>" && token /= ">>" && token /= "1>>"
 
 eval' :: String -> [String] -> IO EvaluatedResult
 eval' command args = case command of
