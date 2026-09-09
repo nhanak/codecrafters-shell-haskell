@@ -10,9 +10,11 @@ import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
 import System.Process (readProcessWithExitCode)
 
-data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String | RedirectStdErrAndContinue String String | PrintStdOutAndRedirectStdErrAndContinue String String String | RedirectStdOutAndPrintStdErrAndContinue String String String | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
+data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
 
-data RedirectStdToFile = RedirectStdOutToFile String | RedirectStdErrToFile String | NoRedirect deriving (Show)
+data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdErrToFile RedirectMode String | NoRedirect deriving (Show)
+
+data RedirectMode = Append | Overwrite deriving (Show)
 
 main :: IO ()
 main = do
@@ -27,10 +29,10 @@ handleEval evaluatedResult = case evaluatedResult of
   PrintStdOutAndContinue stdOut -> printAndContinue stdOut
   PrintStdErrAndContinue stdErr -> printAndContinue stdErr
   PrintStdOutAndPrintStdErrAndContinue stdOut stdErr -> printAndContinue stdErr
-  RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr -> redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr
-  PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr -> redirectStdOutAndPrintStdErrAndContinue stdErr file stdOut
-  RedirectStdOutAndContinue stdOut file -> redirectStdOutAndContinue stdOut file
-  RedirectStdErrAndContinue stdErr file -> redirectStdOutAndContinue stdErr file
+  RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode -> redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode
+  PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr redirectMode -> redirectStdOutAndPrintStdErrAndContinue stdErr file stdOut redirectMode
+  RedirectStdOutAndContinue stdOut file redirectMode -> redirectStdOutAndContinue stdOut file redirectMode
+  RedirectStdErrAndContinue stdErr file redirectMode -> redirectStdOutAndContinue stdErr file redirectMode
   Continue -> main
   Exit -> pure ()
 
@@ -46,14 +48,21 @@ printStrIfNonEmpty str = do
   putStrLn str
   hFlush stdout
 
-redirectStdOutAndContinue :: String -> String -> IO ()
-redirectStdOutAndContinue stdOut file = do
-  writeFile file stdOut
+writeOrAppendFile :: String -> String -> RedirectMode -> IO ()
+writeOrAppendFile str file redirectMode = case redirectMode of
+  Overwrite -> do
+    writeFile file str
+  Append -> do
+    appendFile file str
+
+redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
+redirectStdOutAndContinue stdOut file redirectMode = do
+  writeOrAppendFile stdOut file redirectMode
   main
 
-redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> IO ()
-redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr = do
-  writeFile file stdOut
+redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
+redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
+  writeOrAppendFile stdOut file redirectMode
   printStrIfNonEmpty stdErr
   main
 
@@ -69,14 +78,14 @@ modifyEvaluatedResultWithRedirectFile ioEvaluatedResult redirectStdToFile = do
   evaluatedResult <- ioEvaluatedResult
   case redirectStdToFile of
     NoRedirect -> pure evaluatedResult
-    RedirectStdErrToFile file -> case evaluatedResult of
-      (PrintStdOutAndContinue str) -> pure (PrintStdOutAndRedirectStdErrAndContinue str file "")
-      (PrintStdErrAndContinue str) -> pure (RedirectStdErrAndContinue str file)
-      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr)
+    RedirectStdErrToFile redirectMode file -> case evaluatedResult of
+      (PrintStdOutAndContinue str) -> pure (PrintStdOutAndRedirectStdErrAndContinue str file "" redirectMode)
+      (PrintStdErrAndContinue str) -> pure (RedirectStdErrAndContinue str file redirectMode)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr redirectMode)
       _ -> pure evaluatedResult
-    RedirectStdOutToFile file -> case evaluatedResult of
-      (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str file)
-      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr)
+    RedirectStdOutToFile redirectMode file -> case evaluatedResult of
+      (PrintStdOutAndContinue str) -> pure (RedirectStdOutAndContinue str file redirectMode)
+      (PrintStdOutAndPrintStdErrAndContinue stdOut stdErr) -> pure (RedirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode)
       _ -> pure evaluatedResult
 
 getArgsAndRedirectStdToFile :: [String] -> ([String], RedirectStdToFile)
@@ -86,9 +95,14 @@ getArgsAndRedirectStdToFile tokenizedArgs =
       redirectStdToFile = getRedirectStdToFile tokenizedArgs file
    in (args, redirectStdToFile)
 
+getRedirectMode :: [String] -> RedirectMode
+getRedirectMode args = if (">>") `elem` args || ("1>>") `elem` args then Append else Overwrite
+
 getRedirectStdToFile :: [String] -> Maybe String -> RedirectStdToFile
 getRedirectStdToFile args Nothing = NoRedirect
-getRedirectStdToFile args (Just file) = if hasStdErrRedirectOperator args then RedirectStdErrToFile file else RedirectStdOutToFile file
+getRedirectStdToFile args (Just file) = if hasStdErrRedirectOperator args then RedirectStdErrToFile redirectMode file else RedirectStdOutToFile redirectMode file
+  where
+    redirectMode = getRedirectMode args
 
 getRedirectFile :: [String] -> [String] -> Maybe String
 getRedirectFile args tokenizedArgs =
