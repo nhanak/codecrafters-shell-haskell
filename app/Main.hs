@@ -4,7 +4,7 @@ import ArgsUtils (tokenize)
 import Data.List (isInfixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
-import System.Directory (doesDirectoryExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
+import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (takeFileName)
 import System.IO (hFlush, stdout)
@@ -53,7 +53,8 @@ writeOrAppendFile str file redirectMode = case redirectMode of
   Overwrite -> do
     writeFile file str
   Append -> do
-    appendFile file str
+    fileExists <- doesFileExist file
+    if fileExists then appendFile file ("\n" ++ str) else appendFile file str
 
 redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
 redirectStdOutAndContinue stdOut file redirectMode = do
