@@ -39,7 +39,7 @@ handleEval evaluatedResult = case evaluatedResult of
 
 printAndContinue :: String -> IO ()
 printAndContinue str = do
-  putStrLn str
+  printStrIfNonEmpty str
   hFlush stdout
   main
 
