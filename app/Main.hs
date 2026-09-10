@@ -55,7 +55,17 @@ writeOrAppendFile str file redirectMode = case redirectMode of
     writeFile file str
   Append -> do
     fileExists <- doesFileExist file
-    if fileExists then appendFile file str else appendFile file str
+    if fileExists then handleAppendToFileThatExists str file else appendFile file str
+
+handleAppendToFileThatExists :: String -> String -> IO ()
+handleAppendToFileThatExists str file = do
+  lineCount <- countLines file
+  if lineCount == 0 then appendFile file str else appendFile file ("\n" ++ str)
+
+countLines :: FilePath -> IO Int
+countLines path = do
+  contents <- readFile path
+  return (length (lines contents))
 
 addNewLineIfStrNonEmpty :: String -> String
 addNewLineIfStrNonEmpty "" = ""
