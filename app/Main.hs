@@ -55,19 +55,18 @@ writeOrAppendFile str file redirectMode = case redirectMode of
     writeFile file str
   Append -> do
     fileExists <- doesFileExist file
-    if fileExists then appendFile file ("\n" ++ str) else appendFile file str
+    if fileExists then appendFile file (addNewLineIfStrNonEmpty str) else appendFile file str
+
+addNewLineIfStrNonEmpty :: String -> String
+addNewLineIfStrNonEmpty "" = ""
+addNewLineIfStrNonEmpty str = ("\n" ++ str)
 
 redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
-redirectStdOutAndContinue "" _ _ = do
-  main
 redirectStdOutAndContinue stdOut file redirectMode = do
   writeOrAppendFile stdOut file redirectMode
   main
 
 redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
-redirectStdOutAndPrintStdErrAndContinue "" _ stdErr _ = do
-  printStrIfNonEmpty stdErr
-  main
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   writeOrAppendFile stdOut file redirectMode
   printStrIfNonEmpty stdErr
