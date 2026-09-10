@@ -22,7 +22,7 @@ main = do
   hFlush stdout
   args <- getLine
   evaluatedResult <- eval args
-  putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
+  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
@@ -66,7 +66,7 @@ redirectStdOutAndContinue stdOut file redirectMode = do
 
 redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
 redirectStdOutAndPrintStdErrAndContinue "" _ stdErr _ = do
-  printStrIfNonEmpty
+  printStrIfNonEmpty stdErr
   main
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   writeOrAppendFile stdOut file redirectMode
