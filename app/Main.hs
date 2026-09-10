@@ -22,6 +22,7 @@ main = do
   hFlush stdout
   args <- getLine
   evaluatedResult <- eval args
+  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
