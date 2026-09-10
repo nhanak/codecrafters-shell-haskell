@@ -22,7 +22,7 @@ main = do
   hFlush stdout
   args <- getLine
   evaluatedResult <- eval args
-  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
+  putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
@@ -58,11 +58,16 @@ writeOrAppendFile str file redirectMode = case redirectMode of
     if fileExists then appendFile file ("\n" ++ str) else appendFile file str
 
 redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
+redirectStdOutAndContinue "" _ _ = do
+  main
 redirectStdOutAndContinue stdOut file redirectMode = do
   writeOrAppendFile stdOut file redirectMode
   main
 
 redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
+redirectStdOutAndPrintStdErrAndContinue "" _ stdErr _ = do
+  printStrIfNonEmpty
+  main
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   writeOrAppendFile stdOut file redirectMode
   printStrIfNonEmpty stdErr
