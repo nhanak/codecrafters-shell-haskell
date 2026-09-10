@@ -22,7 +22,7 @@ main = do
   hFlush stdout
   args <- getLine
   evaluatedResult <- eval args
-  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
+  putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
@@ -55,7 +55,7 @@ writeOrAppendFile str file redirectMode = case redirectMode of
     writeFile file str
   Append -> do
     fileExists <- doesFileExist file
-    if fileExists then appendFile file (addNewLineIfStrNonEmpty str) else appendFile file str
+    if fileExists then appendFile file str else appendFile file str
 
 addNewLineIfStrNonEmpty :: String -> String
 addNewLineIfStrNonEmpty "" = ""
