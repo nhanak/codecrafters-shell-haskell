@@ -1,2 +1,0 @@
-cat: nonexistent: No such file or directory
-ls: cannot access 'nonexistent': No such file or directory

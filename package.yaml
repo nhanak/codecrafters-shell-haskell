@@ -16,6 +16,8 @@ dependencies:
   - directory
   - filepath
   - text
+  - ansi-terminal
+  - no-buffering-workaround
 
 executables:
   codecrafters-shell-exe:

@@ -1,13 +1,15 @@
 module Main (main) where
 
 import ArgsUtils (tokenize)
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
+import System.Console.ANSI
 import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (takeFileName)
-import System.IO (hFlush, stdout)
+import System.IO (hFlush, hSetEcho, stdin, stdout)
+import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (readProcessWithExitCode)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
@@ -16,13 +18,74 @@ data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdE
 
 data RedirectMode = Append | Overwrite deriving (Show)
 
+getInput :: IO String
+getInput = getInput' ""
+
+getInput' :: String -> IO String
+getInput' inputSoFar = do
+  char <- getCharNoBuffering
+  case char of
+    '\b' ->
+      if null inputSoFar
+        then getInput' inputSoFar
+        else do
+          clearFromCursorToLineBeginning
+          setCursorColumn 0
+          putStr ("$ " ++ (init inputSoFar))
+          hFlush stdout
+          getInput' (init inputSoFar)
+    '\r' -> do
+      putStr [char, '\n']
+      hFlush stdout
+      pure (inputSoFar ++ ['\r'])
+    '\n' -> do
+      putStr [char]
+      hFlush stdout
+      pure (inputSoFar ++ ['\n'])
+    '\t' -> handleAutoCompletion inputSoFar
+    _ -> do
+      putStr [char]
+      hFlush stdout
+      getInput' (inputSoFar ++ [char])
+
+handleAutoCompletion :: String -> IO String
+handleAutoCompletion inputSoFar =
+  let inferredCommand = inferCommand inputSoFar
+   in do
+        clearFromCursorToLineBeginning
+        setCursorColumn 0
+        putStr ("$ " ++ inferredCommand)
+        hFlush stdout
+        getInput' inferredCommand
+
+inferCommand :: String -> String
+inferCommand partialCommand = getPartialCommandMatch partialCommand ["exit", "echo"]
+
+addSpaceToInferredCommand :: String -> String
+addSpaceToInferredCommand inferredCommand = case inferredCommand of
+  "echo" -> "echo" ++ " "
+  _ -> inferredCommand
+
+getPartialCommandMatch :: String -> [String] -> String
+getPartialCommandMatch partialCommand builtins =
+  let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
+   in if null filteredBuiltins then partialCommand ++ "\t" else (addSpaceToInferredCommand $ head filteredBuiltins)
+
+doesPartialCommandMatchBuiltin :: String -> String -> Bool
+doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
+
 main :: IO ()
 main = do
+  initGetCharNoBuffering
+  hSetEcho stdin False
+  main'
+
+main' :: IO ()
+main' = do
   putStr "$ "
   hFlush stdout
-  args <- getLine
+  args <- getInput
   evaluatedResult <- eval args
-  -- putStrLn ("[DEBUG]: evaluatedResult: " ++ (show evaluatedResult))
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> IO ()
@@ -34,14 +97,14 @@ handleEval evaluatedResult = case evaluatedResult of
   PrintStdOutAndRedirectStdErrAndContinue stdOut file stdErr redirectMode -> redirectStdOutAndPrintStdErrAndContinue stdErr file stdOut redirectMode
   RedirectStdOutAndContinue stdOut file redirectMode -> redirectStdOutAndContinue stdOut file redirectMode
   RedirectStdErrAndContinue stdErr file redirectMode -> redirectStdOutAndContinue stdErr file redirectMode
-  Continue -> main
+  Continue -> main'
   Exit -> pure ()
 
 printAndContinue :: String -> IO ()
 printAndContinue str = do
   printStrIfNonEmpty str
   hFlush stdout
-  main
+  main'
 
 printStrIfNonEmpty :: String -> IO ()
 printStrIfNonEmpty "" = pure ()
@@ -67,20 +130,16 @@ countLines path = do
   contents <- readFile path
   return (length (lines contents))
 
-addNewLineIfStrNonEmpty :: String -> String
-addNewLineIfStrNonEmpty "" = ""
-addNewLineIfStrNonEmpty str = ("\n" ++ str)
-
 redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
 redirectStdOutAndContinue stdOut file redirectMode = do
   writeOrAppendFile stdOut file redirectMode
-  main
+  main'
 
 redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   writeOrAppendFile stdOut file redirectMode
   printStrIfNonEmpty stdErr
-  main
+  main'
 
 eval :: String -> IO EvaluatedResult
 eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args) redirectStdToFile

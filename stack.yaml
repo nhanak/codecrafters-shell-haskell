@@ -9,3 +9,6 @@ resolver: lts-23.18
 
 packages:
   - .
+
+extra-deps: 
+  - no-buffering-workaround-0.1.0.0
