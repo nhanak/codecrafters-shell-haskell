@@ -61,15 +61,10 @@ handleAutoCompletion inputSoFar =
 inferCommand :: String -> String
 inferCommand partialCommand = getPartialCommandMatch partialCommand ["exit", "echo"]
 
-addSpaceToInferredCommand :: String -> String
-addSpaceToInferredCommand inferredCommand = case inferredCommand of
-  "echo" -> "echo" ++ " "
-  _ -> inferredCommand
-
 getPartialCommandMatch :: String -> [String] -> String
 getPartialCommandMatch partialCommand builtins =
   let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
-   in if null filteredBuiltins then partialCommand ++ "\t" else (addSpaceToInferredCommand $ head filteredBuiltins)
+   in if null filteredBuiltins then partialCommand ++ "\t" else ((head filteredBuiltins) ++ " ")
 
 doesPartialCommandMatchBuiltin :: String -> String -> Bool
 doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
