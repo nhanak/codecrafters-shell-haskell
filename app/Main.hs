@@ -56,7 +56,7 @@ handleAutoCompletion inputSoFar = case findBuiltInAutoCompleteMatch inputSoFar o
     wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
     case wasExecutableAutoCompleteMatchFound of
       NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar
-      (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound (init executableAutoCompleteMatch)
+      (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch
   (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch
 
 handleNoAutoCompleteFound :: String -> IO String
