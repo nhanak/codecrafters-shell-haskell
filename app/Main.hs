@@ -1,13 +1,15 @@
 module Main (main) where
 
 import ArgsUtils (tokenize)
+import Control.Exception (try)
+import Control.Monad (filterM, mapM)
 import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import System.Console.ANSI
-import System.Directory (doesDirectoryExist, doesFileExist, findExecutable, getCurrentDirectory, getHomeDirectory, listDirectory, setCurrentDirectory)
+import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
-import System.FilePath (takeFileName)
+import System.FilePath (getSearchPath, takeBaseName, takeFileName)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (readProcessWithExitCode)
@@ -49,10 +51,13 @@ getInput' inputSoFar = do
       getInput' (inputSoFar ++ [char])
 
 handleAutoCompletion :: String -> IO String
-handleAutoCompletion inputSoFar =
-  let inferredCommand = inferCommand inputSoFar
-      autoCompleteFound = if inferredCommand /= inputSoFar ++ "\t" then True else False
-   in if autoCompleteFound then handleAutoCompleteFound inferredCommand else handleNoAutoCompleteFound inputSoFar
+handleAutoCompletion inputSoFar = case findBuiltInAutoCompleteMatch inputSoFar of
+  NoAutoCompleteMatchFound -> do
+    wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
+    case wasExecutableAutoCompleteMatchFound of
+      NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar
+      (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch
+  (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch
 
 handleNoAutoCompleteFound :: String -> IO String
 handleNoAutoCompleteFound inputSoFar = do
@@ -68,13 +73,42 @@ handleAutoCompleteFound inferredCommand = do
   hFlush stdout
   getInput' inferredCommand
 
-inferCommand :: String -> String
-inferCommand partialCommand = getPartialCommandMatch partialCommand ["exit", "echo"]
+data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String deriving (Show)
 
-getPartialCommandMatch :: String -> [String] -> String
-getPartialCommandMatch partialCommand builtins =
+findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
+findBuiltInAutoCompleteMatch partialCommand = findBuiltInAutoCompleteMatch' partialCommand ["exit", "echo"]
+
+getAllExecutablesInDir :: String -> IO [String]
+getAllExecutablesInDir dir = do
+  directoryExists <- doesDirectoryExist dir
+  case directoryExists of
+    False -> pure []
+    True -> do
+      files <- listDirectory dir
+      filterM isFileExecutable ((map (\file -> dir ++ "\\" ++ file)) files)
+
+isFileExecutable :: String -> IO Bool
+isFileExecutable file = do
+  result <- try (getPermissions file) :: IO (Either IOError Permissions)
+  case result of
+    Right permissions -> pure $ executable permissions
+    Left err -> pure False
+
+getAllExecutablesInDirs :: [String] -> IO [String]
+getAllExecutablesInDirs dirs = do
+  allExecs <- mapM getAllExecutablesInDir dirs
+  pure $ (map takeBaseName (concat allExecs))
+
+findExecutableAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
+findExecutableAutoCompleteMatch partialCommand = do
+  execSearchPath <- getSearchPath
+  allExecutables <- getAllExecutablesInDirs execSearchPath
+  pure $ findBuiltInAutoCompleteMatch' partialCommand allExecutables
+
+findBuiltInAutoCompleteMatch' :: String -> [String] -> WasAutoCompleteMatchFound
+findBuiltInAutoCompleteMatch' partialCommand builtins =
   let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
-   in if null filteredBuiltins then partialCommand ++ "\t" else ((head filteredBuiltins) ++ " ")
+   in if null filteredBuiltins then NoAutoCompleteMatchFound else AutoCompleteMatchFound ((head filteredBuiltins) ++ " ")
 
 doesPartialCommandMatchBuiltin :: String -> String -> Bool
 doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
