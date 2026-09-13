@@ -85,7 +85,7 @@ getAllExecutablesInDir dir = do
     False -> pure []
     True -> do
       files <- listDirectory dir
-      filterM isFileExecutable ((map (\file -> dir ++ [pathSeperator] ++ file)) files)
+      filterM isFileExecutable ((map (\file -> dir ++ [pathSeparator] ++ file)) files)
 
 isFileExecutable :: String -> IO Bool
 isFileExecutable file = do
