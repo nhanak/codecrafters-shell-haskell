@@ -9,7 +9,7 @@ import Debug.Trace (traceShow)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
-import System.FilePath (getSearchPath, takeBaseName, takeFileName)
+import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (readProcessWithExitCode)
@@ -85,7 +85,7 @@ getAllExecutablesInDir dir = do
     False -> pure []
     True -> do
       files <- listDirectory dir
-      filterM isFileExecutable ((map (\file -> dir ++ "\\" ++ file)) files)
+      filterM isFileExecutable ((map (\file -> dir ++ [pathSeperator] ++ file)) files)
 
 isFileExecutable :: String -> IO Bool
 isFileExecutable file = do
