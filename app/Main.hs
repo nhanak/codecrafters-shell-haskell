@@ -51,12 +51,22 @@ getInput' inputSoFar = do
 handleAutoCompletion :: String -> IO String
 handleAutoCompletion inputSoFar =
   let inferredCommand = inferCommand inputSoFar
-   in do
-        clearFromCursorToLineBeginning
-        setCursorColumn 0
-        putStr ("$ " ++ inferredCommand)
-        hFlush stdout
-        getInput' inferredCommand
+      autoCompleteFound = if inferredCommand /= inputSoFar ++ "\t" then True else False
+   in if autoCompleteFound then handleAutoCompleteFound inferredCommand else handleNoAutoCompleteFound inputSoFar
+
+handleNoAutoCompleteFound :: String -> IO String
+handleNoAutoCompleteFound inputSoFar = do
+  putStr ['\a']
+  hFlush stdout
+  getInput' inputSoFar
+
+handleAutoCompleteFound :: String -> IO String
+handleAutoCompleteFound inferredCommand = do
+  clearFromCursorToLineBeginning
+  setCursorColumn 0
+  putStr ("$ " ++ inferredCommand)
+  hFlush stdout
+  getInput' inferredCommand
 
 inferCommand :: String -> String
 inferCommand partialCommand = getPartialCommandMatch partialCommand ["exit", "echo"]
