@@ -20,22 +20,24 @@ data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdE
 
 data RedirectMode = Append | Overwrite deriving (Show)
 
-getInput :: IO String
-getInput = getInput' ""
+data InputAutoCompletionState = Normal | OneTabPressed [String]
 
-getInput' :: String -> IO String
-getInput' inputSoFar = do
+getInput :: IO String
+getInput = getInput' "" Normal
+
+getInput' :: String -> InputAutoCompletionState -> IO String
+getInput' inputSoFar inputAutoCompletionState = do
   char <- getCharNoBuffering
   case char of
     '\b' ->
       if null inputSoFar
-        then getInput' inputSoFar
+        then getInput' inputSoFar Normal
         else do
           clearFromCursorToLineBeginning
           setCursorColumn 0
           putStr ("$ " ++ (init inputSoFar))
           hFlush stdout
-          getInput' (init inputSoFar)
+          getInput' (init inputSoFar) Normal
     '\r' -> do
       putStr [char, '\n']
       hFlush stdout
@@ -44,26 +46,50 @@ getInput' inputSoFar = do
       putStr [char]
       hFlush stdout
       pure (inputSoFar ++ ['\n'])
-    '\t' -> handleAutoCompletion inputSoFar
+    '\t' -> handleAutoCompletion inputSoFar inputAutoCompletionState
     _ -> do
       putStr [char]
       hFlush stdout
-      getInput' (inputSoFar ++ [char])
+      getInput' (inputSoFar ++ [char]) Normal
 
-handleAutoCompletion :: String -> IO String
-handleAutoCompletion inputSoFar = case findBuiltInAutoCompleteMatch inputSoFar of
-  NoAutoCompleteMatchFound -> do
-    wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
-    case wasExecutableAutoCompleteMatchFound of
-      NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar
-      (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch
-  (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch
+handleAutoCompletion :: String -> InputAutoCompletionState -> IO String
+handleAutoCompletion inputSoFar inputAutoCompletionSate = case inputAutoCompletionSate of
+  Normal -> handleNormalAutoCompletionState inputSoFar
+  (OneTabPressed options) -> handleOneTabAutoCompletionState inputSoFar options
+
+handleNormalAutoCompletionState :: String -> IO String
+handleNormalAutoCompletionState inputSoFar = do
+  case findBuiltInAutoCompleteMatch inputSoFar of
+    NoAutoCompleteMatchFound -> do
+      wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
+      case wasExecutableAutoCompleteMatchFound of
+        NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar
+        (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch
+        (AutoCompleteMatchesFound executableAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar executableAutoCompleteMatches
+    (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch
+    (AutoCompleteMatchesFound builtInAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar builtInAutoCompleteMatches
+
+handleAutoCompleteMatchesFound :: String -> [String] -> IO String
+handleAutoCompleteMatchesFound inputSoFar matches = do
+  putStr ['\a']
+  hFlush stdout
+  getInput' inputSoFar (OneTabPressed matches)
+
+handleOneTabAutoCompletionState :: String -> [String] -> IO String
+handleOneTabAutoCompletionState inputSoFar options = do
+  putStr ['\n']
+  hFlush stdout
+  putStrLn (unwords options)
+  hFlush stdout
+  putStr ("$ " ++ inputSoFar)
+  hFlush stdout
+  getInput' inputSoFar Normal
 
 handleNoAutoCompleteFound :: String -> IO String
 handleNoAutoCompleteFound inputSoFar = do
   putStr ['\a']
   hFlush stdout
-  getInput' inputSoFar
+  getInput' inputSoFar Normal
 
 handleAutoCompleteFound :: String -> IO String
 handleAutoCompleteFound inferredCommand = do
@@ -71,9 +97,9 @@ handleAutoCompleteFound inferredCommand = do
   setCursorColumn 0
   putStr ("$ " ++ inferredCommand)
   hFlush stdout
-  getInput' inferredCommand
+  getInput' inferredCommand Normal
 
-data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String deriving (Show)
+data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
 
 findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
 findBuiltInAutoCompleteMatch partialCommand = findBuiltInAutoCompleteMatch' partialCommand ["exit", "echo"]
@@ -108,7 +134,10 @@ findExecutableAutoCompleteMatch partialCommand = do
 findBuiltInAutoCompleteMatch' :: String -> [String] -> WasAutoCompleteMatchFound
 findBuiltInAutoCompleteMatch' partialCommand builtins =
   let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
-   in if null filteredBuiltins then NoAutoCompleteMatchFound else AutoCompleteMatchFound ((head filteredBuiltins) ++ " ")
+   in case filteredBuiltins of
+        [] -> NoAutoCompleteMatchFound
+        [x] -> AutoCompleteMatchFound ((head filteredBuiltins) ++ " ")
+        _ -> AutoCompleteMatchesFound filteredBuiltins
 
 doesPartialCommandMatchBuiltin :: String -> String -> Bool
 doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
