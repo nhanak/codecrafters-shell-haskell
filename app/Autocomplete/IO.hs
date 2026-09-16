@@ -25,7 +25,7 @@ handleFilenameNormalAutoCompletionState inputSoFar getInput' = do
   wasFilenameAutoCompleteMatchFound <- findFilenameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFilenameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
-    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ fileNameAutoCompleteMatch ++ " ") getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ fileNameAutoCompleteMatch) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
