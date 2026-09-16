@@ -89,5 +89,5 @@ findExecutableAutoCompleteMatch partialCommand = do
     NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
     (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
     (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
-      Nothing -> pure NoAutoCompleteMatchFound
+      Nothing -> pure (AutoCompleteMatchesFound matches)
       Just prefix -> pure (AutoCompleteMatchFound prefix)
