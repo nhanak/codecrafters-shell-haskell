@@ -1,9 +1,11 @@
-module Autocomplete.Core (WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch') where
+module Autocomplete.Core (getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch') where
 
 import Data.List (isInfixOf, isPrefixOf, maximumBy)
 import Data.Ord (comparing)
 
 data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
+
+data AutoCompletionType = CommandAutoCompletion | FilenameAutoCompletion
 
 findLongestCommonPrefix :: [String] -> Maybe String
 findLongestCommonPrefix options =
@@ -32,3 +34,9 @@ findBuiltInAutoCompleteMatch' partialCommand builtins =
 
 doesPartialCommandMatchBuiltin :: String -> String -> Bool
 doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
+
+getAutoCompletionType :: String -> AutoCompletionType
+getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 then CommandAutoCompletion else FilenameAutoCompletion
+
+getFileNameFromInputSoFar :: String -> String
+getFileNameFromInputSoFar inputSoFar = last $ words inputSoFar

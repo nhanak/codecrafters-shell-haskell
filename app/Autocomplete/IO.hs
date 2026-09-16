@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (WasAutoCompleteMatchFound (..), findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch', findLongestCommonPrefix)
+import Autocomplete.Core (AutoCompletionType (..), WasAutoCompleteMatchFound (..), findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch', findLongestCommonPrefix, getAutoCompletionType, getFileNameFromInputSoFar)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (isInfixOf, isPrefixOf, maximumBy)
@@ -15,11 +15,21 @@ data InputAutoCompletionState = Normal | OneTabPressed [String]
 
 handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAutoCompletionState -> IO String) -> IO String
 handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAutoCompletionSate of
-  Normal -> handleNormalAutoCompletionState inputSoFar getInput'
+  Normal -> case getAutoCompletionType inputSoFar of
+    CommandAutoCompletion -> handleCommandNormalAutoCompletionState inputSoFar getInput'
+    FilenameAutoCompletion -> handleFilenameNormalAutoCompletionState inputSoFar getInput'
   (OneTabPressed options) -> handleOneTabAutoCompletionState inputSoFar options getInput'
 
-handleNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
-handleNormalAutoCompletionState inputSoFar getInput' = do
+handleFilenameNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleFilenameNormalAutoCompletionState inputSoFar getInput' = do
+  wasFilenameAutoCompleteMatchFound <- findFilenameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
+  case wasFilenameAutoCompleteMatchFound of
+    NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ fileNameAutoCompleteMatch ++ " ") getInput'
+    (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
+
+handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleCommandNormalAutoCompletionState inputSoFar getInput' = do
   case findBuiltInAutoCompleteMatch inputSoFar of
     NoAutoCompleteMatchFound -> do
       wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
@@ -86,6 +96,16 @@ findExecutableAutoCompleteMatch partialCommand = do
   execSearchPath <- getSearchPath
   allExecutables <- getAllExecutablesInDirs execSearchPath
   case findBuiltInAutoCompleteMatch' partialCommand allExecutables of
+    NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
+    (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
+    (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
+      Nothing -> pure (AutoCompleteMatchesFound matches)
+      Just prefix -> pure (AutoCompleteMatchFound prefix)
+
+findFilenameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
+findFilenameAutoCompleteMatch partialFileName = do
+  allFiles <- listDirectory "."
+  case findBuiltInAutoCompleteMatch' partialFileName allFiles of
     NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
     (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
     (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
