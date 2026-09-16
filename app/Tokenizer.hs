@@ -1,4 +1,4 @@
-module ArgsUtils (tokenize) where
+module Tokenizer (tokenize) where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)

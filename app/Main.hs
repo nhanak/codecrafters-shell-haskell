@@ -1,146 +1,22 @@
 module Main (main) where
 
-import ArgsUtils (tokenize)
-import Control.Exception (try)
-import Control.Monad (filterM, mapM)
 import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
-import System.Console.ANSI
+import Input (getInput)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (readProcessWithExitCode)
+import Tokenizer (tokenize)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
 
 data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdErrToFile RedirectMode String | NoRedirect deriving (Show)
 
 data RedirectMode = Append | Overwrite deriving (Show)
-
-data InputAutoCompletionState = Normal | OneTabPressed [String]
-
-getInput :: IO String
-getInput = getInput' "" Normal
-
-getInput' :: String -> InputAutoCompletionState -> IO String
-getInput' inputSoFar inputAutoCompletionState = do
-  char <- getCharNoBuffering
-  case char of
-    '\b' ->
-      if null inputSoFar
-        then getInput' inputSoFar Normal
-        else do
-          clearFromCursorToLineBeginning
-          setCursorColumn 0
-          putStr ("$ " ++ (init inputSoFar))
-          hFlush stdout
-          getInput' (init inputSoFar) Normal
-    '\r' -> do
-      putStr [char, '\n']
-      hFlush stdout
-      pure (inputSoFar ++ ['\r'])
-    '\n' -> do
-      putStr [char]
-      hFlush stdout
-      pure (inputSoFar ++ ['\n'])
-    '\t' -> handleAutoCompletion inputSoFar inputAutoCompletionState
-    _ -> do
-      putStr [char]
-      hFlush stdout
-      getInput' (inputSoFar ++ [char]) Normal
-
-handleAutoCompletion :: String -> InputAutoCompletionState -> IO String
-handleAutoCompletion inputSoFar inputAutoCompletionSate = case inputAutoCompletionSate of
-  Normal -> handleNormalAutoCompletionState inputSoFar
-  (OneTabPressed options) -> handleOneTabAutoCompletionState inputSoFar options
-
-handleNormalAutoCompletionState :: String -> IO String
-handleNormalAutoCompletionState inputSoFar = do
-  case findBuiltInAutoCompleteMatch inputSoFar of
-    NoAutoCompleteMatchFound -> do
-      wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
-      case wasExecutableAutoCompleteMatchFound of
-        NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar
-        (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch
-        (AutoCompleteMatchesFound executableAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar executableAutoCompleteMatches
-    (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch
-    (AutoCompleteMatchesFound builtInAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar builtInAutoCompleteMatches
-
-handleAutoCompleteMatchesFound :: String -> [String] -> IO String
-handleAutoCompleteMatchesFound inputSoFar matches = do
-  putStr ['\a']
-  hFlush stdout
-  getInput' inputSoFar (OneTabPressed matches)
-
-handleOneTabAutoCompletionState :: String -> [String] -> IO String
-handleOneTabAutoCompletionState inputSoFar options = do
-  putStr ['\n']
-  hFlush stdout
-  putStrLn (unwords options)
-  hFlush stdout
-  putStr ("$ " ++ inputSoFar)
-  hFlush stdout
-  getInput' inputSoFar Normal
-
-handleNoAutoCompleteFound :: String -> IO String
-handleNoAutoCompleteFound inputSoFar = do
-  putStr ['\a']
-  hFlush stdout
-  getInput' inputSoFar Normal
-
-handleAutoCompleteFound :: String -> IO String
-handleAutoCompleteFound inferredCommand = do
-  clearFromCursorToLineBeginning
-  setCursorColumn 0
-  putStr ("$ " ++ inferredCommand)
-  hFlush stdout
-  getInput' inferredCommand Normal
-
-data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
-
-findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
-findBuiltInAutoCompleteMatch partialCommand = findBuiltInAutoCompleteMatch' partialCommand ["exit", "echo"]
-
-getAllExecutablesInDir :: String -> IO [String]
-getAllExecutablesInDir dir = do
-  directoryExists <- doesDirectoryExist dir
-  case directoryExists of
-    False -> pure []
-    True -> do
-      files <- listDirectory dir
-      filterM isFileExecutable ((map (\file -> dir ++ [pathSeparator] ++ file)) files)
-
-isFileExecutable :: String -> IO Bool
-isFileExecutable file = do
-  result <- try (getPermissions file) :: IO (Either IOError Permissions)
-  case result of
-    Right permissions -> pure $ executable permissions
-    Left err -> pure False
-
-getAllExecutablesInDirs :: [String] -> IO [String]
-getAllExecutablesInDirs dirs = do
-  allExecs <- mapM getAllExecutablesInDir dirs
-  pure $ (map takeBaseName (concat allExecs))
-
-findExecutableAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
-findExecutableAutoCompleteMatch partialCommand = do
-  execSearchPath <- getSearchPath
-  allExecutables <- getAllExecutablesInDirs execSearchPath
-  pure $ findBuiltInAutoCompleteMatch' partialCommand allExecutables
-
-findBuiltInAutoCompleteMatch' :: String -> [String] -> WasAutoCompleteMatchFound
-findBuiltInAutoCompleteMatch' partialCommand builtins =
-  let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
-   in case filteredBuiltins of
-        [] -> NoAutoCompleteMatchFound
-        [x] -> AutoCompleteMatchFound ((head filteredBuiltins) ++ " ")
-        _ -> AutoCompleteMatchesFound filteredBuiltins
-
-doesPartialCommandMatchBuiltin :: String -> String -> Bool
-doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
 
 main :: IO ()
 main = do
