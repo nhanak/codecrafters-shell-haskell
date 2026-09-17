@@ -1,11 +1,15 @@
-module Autocomplete.Core (getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch') where
+module Autocomplete.Core (getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName) where
 
-import Data.List (isInfixOf, isPrefixOf, maximumBy)
+import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
+import Data.List.Split (splitOn)
 import Data.Ord (comparing)
+import System.FilePath (pathSeparator)
 
 data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
 
-data AutoCompletionType = CommandAutoCompletion | FilenameAutoCompletion
+data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion
+
+data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion
 
 findLongestCommonPrefix :: [String] -> Maybe String
 findLongestCommonPrefix options =
@@ -22,10 +26,10 @@ findCommonPrefixes :: String -> [String] -> [String]
 findCommonPrefixes prefix = filter (\option -> prefix /= option && prefix `isPrefixOf` option)
 
 findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
-findBuiltInAutoCompleteMatch partialCommand = findBuiltInAutoCompleteMatch' partialCommand ["exit", "echo"]
+findBuiltInAutoCompleteMatch partialCommand = findAutoCompleteMatch partialCommand ["exit", "echo"]
 
-findBuiltInAutoCompleteMatch' :: String -> [String] -> WasAutoCompleteMatchFound
-findBuiltInAutoCompleteMatch' partialCommand builtins =
+findAutoCompleteMatch :: String -> [String] -> WasAutoCompleteMatchFound
+findAutoCompleteMatch partialCommand builtins =
   let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
    in case filteredBuiltins of
         [] -> NoAutoCompleteMatchFound
@@ -36,7 +40,16 @@ doesPartialCommandMatchBuiltin :: String -> String -> Bool
 doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
 
 getAutoCompletionType :: String -> AutoCompletionType
-getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 then CommandAutoCompletion else FilenameAutoCompletion
+getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 then CommandAutoCompletion else FileNameAutoCompletion
+
+getFileNameAutoCompletionType :: String -> FileNameAutoCompletionType
+getFileNameAutoCompletionType inputSoFar = if pathSeparator `elem` last (words inputSoFar) then NestedFileNameAutoCompletion else NonNestedFileNameAutoCompletion
 
 getFileNameFromInputSoFar :: String -> String
 getFileNameFromInputSoFar inputSoFar = last $ words inputSoFar
+
+getFileNameFromPartialNestedFileName :: String -> String
+getFileNameFromPartialNestedFileName partialNestedFileName = last $ splitOn [pathSeparator] partialNestedFileName
+
+getPathFromPartialNestedFileName :: String -> String
+getPathFromPartialNestedFileName partialNestedFileName = intercalate [pathSeparator] (init $ splitOn [pathSeparator] partialNestedFileName)

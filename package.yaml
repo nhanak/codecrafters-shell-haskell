@@ -18,6 +18,7 @@ dependencies:
   - text
   - ansi-terminal
   - no-buffering-workaround
+  - split
 
 executables:
   codecrafters-shell-exe:

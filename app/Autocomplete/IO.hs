@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), WasAutoCompleteMatchFound (..), findBuiltInAutoCompleteMatch, findBuiltInAutoCompleteMatch', findLongestCommonPrefix, getAutoCompletionType, getFileNameFromInputSoFar)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (isInfixOf, isPrefixOf, maximumBy)
@@ -17,13 +17,23 @@ handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAu
 handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAutoCompletionSate of
   Normal -> case getAutoCompletionType inputSoFar of
     CommandAutoCompletion -> handleCommandNormalAutoCompletionState inputSoFar getInput'
-    FilenameAutoCompletion -> handleFilenameNormalAutoCompletionState inputSoFar getInput'
+    FileNameAutoCompletion -> case getFileNameAutoCompletionType inputSoFar of
+      NonNestedFileNameAutoCompletion -> handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput'
+      NestedFileNameAutoCompletion -> handleFileNameNestedNormalAutoCompletionState inputSoFar getInput'
   (OneTabPressed options) -> handleOneTabAutoCompletionState inputSoFar options getInput'
 
-handleFilenameNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
-handleFilenameNormalAutoCompletionState inputSoFar getInput' = do
-  wasFilenameAutoCompleteMatchFound <- findFilenameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
-  case wasFilenameAutoCompleteMatchFound of
+handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
+  wasFileNameAutoCompleteMatchFound <- findNestedFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
+  case wasFileNameAutoCompleteMatchFound of
+    NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch) getInput'
+    (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
+
+handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
+  wasFileNameAutoCompleteMatchFound <- findFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
+  case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ fileNameAutoCompleteMatch) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
@@ -95,17 +105,24 @@ findExecutableAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findExecutableAutoCompleteMatch partialCommand = do
   execSearchPath <- getSearchPath
   allExecutables <- getAllExecutablesInDirs execSearchPath
-  case findBuiltInAutoCompleteMatch' partialCommand allExecutables of
-    NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
-    (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
-    (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
-      Nothing -> pure (AutoCompleteMatchesFound matches)
-      Just prefix -> pure (AutoCompleteMatchFound prefix)
+  findAutoCompleteMatchIO partialCommand allExecutables
 
-findFilenameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
-findFilenameAutoCompleteMatch partialFileName = do
+findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
+findFileNameAutoCompleteMatch partialFileName = do
   allFiles <- listDirectory "."
-  case findBuiltInAutoCompleteMatch' partialFileName allFiles of
+  findAutoCompleteMatchIO partialFileName allFiles
+
+findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
+findNestedFileNameAutoCompleteMatch partialNestedFileName =
+  let path = getPathFromPartialNestedFileName partialNestedFileName
+      partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
+   in do
+        allFiles <- listDirectory ("." ++ [pathSeparator] ++ path)
+        findAutoCompleteMatchIO partialFileName allFiles
+
+findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
+findAutoCompleteMatchIO target options =
+  case findAutoCompleteMatch target options of
     NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
     (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
     (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
