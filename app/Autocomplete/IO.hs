@@ -139,7 +139,7 @@ findAutoCompleteMatchIO partial options =
 getPathType :: String -> IO PathType
 getPathType path = do
   isDirectory <- doesDirectoryExist path
-  if isDirectory then pure PathIsDirectory else pure PathIsFile
+  if isDirectory then pure PathIsDirectory else pure PathIsDirectory
 
 addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
