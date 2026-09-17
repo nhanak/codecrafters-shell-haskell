@@ -32,7 +32,7 @@ handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
       let filePathPartial = (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch
        in do
             filePath <- addPathSeparatorIfDirectory filePathPartial
-            handleAutoCompleteFound ((getInputBeforeFilePath inputSoFar) ++ " " ++ filePath) getInput'
+            handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
@@ -139,7 +139,7 @@ findAutoCompleteMatchIO partial options =
 getPathType :: String -> IO PathType
 getPathType path = do
   isDirectory <- doesDirectoryExist path
-  if isDirectory then pure PathIsDirectory else pure PathIsDirectory
+  if isDirectory then pure PathIsDirectory else pure PathIsFile
 
 addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
