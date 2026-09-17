@@ -9,7 +9,6 @@ import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, stdin, stdout)
-import System.IO.NoBufferingWorkaround (getCharNoBuffering)
 
 data InputAutoCompletionState = Normal | OneTabPressed [String]
 
