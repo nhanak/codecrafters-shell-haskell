@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
@@ -33,7 +33,7 @@ handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
       let filePathPartial = (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch
        in do
             filePath <- addPathSeparatorIfDirectory filePathPartial
-            handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ filePath) getInput'
+            handleAutoCompleteFound ((getInputBeforeFilePath inputSoFar) ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
@@ -43,7 +43,7 @@ handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> do
       filePath <- addPathSeparatorIfDirectory fileNameAutoCompleteMatch
-      handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ filePath) getInput'
+      handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
