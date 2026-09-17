@@ -7,9 +7,9 @@ import System.FilePath (pathSeparator)
 
 data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
 
-data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion
+data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion deriving (Show)
 
-data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion
+data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion deriving (Show)
 
 findLongestCommonPrefix :: [String] -> Maybe String
 findLongestCommonPrefix options =
@@ -40,7 +40,7 @@ doesPartialMatchOption :: String -> String -> Bool
 doesPartialMatchOption partial option = partial /= "" && partial `isPrefixOf` option
 
 getAutoCompletionType :: String -> AutoCompletionType
-getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 then CommandAutoCompletion else FileNameAutoCompletion
+getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' then CommandAutoCompletion else FileNameAutoCompletion
 
 getFileNameAutoCompletionType :: String -> FileNameAutoCompletionType
 getFileNameAutoCompletionType inputSoFar = if pathSeparator `elem` last (words inputSoFar) then NestedFileNameAutoCompletion else NonNestedFileNameAutoCompletion
