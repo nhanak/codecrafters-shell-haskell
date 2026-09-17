@@ -3,7 +3,7 @@ module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) whe
 import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
-import Data.List (isInfixOf, isPrefixOf, maximumBy)
+import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
 import Data.Ord (comparing)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
@@ -60,7 +60,7 @@ handleOneTabAutoCompletionState :: String -> [String] -> (String -> InputAutoCom
 handleOneTabAutoCompletionState inputSoFar options getInput' = do
   putStr ['\n']
   hFlush stdout
-  putStrLn (unwords options)
+  putStrLn (intercalate "  " (sort options))
   hFlush stdout
   putStr ("$ " ++ inputSoFar)
   hFlush stdout
