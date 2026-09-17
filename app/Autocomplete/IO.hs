@@ -3,11 +3,11 @@ module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) whe
 import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
-import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
+import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort, (\\))
 import Data.Ord (comparing)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
-import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
+import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName, (</>))
 import System.IO (hFlush, stdin, stdout)
 
 data InputAutoCompletionState = Normal | OneTabPressed [String]
@@ -116,7 +116,7 @@ findExecutableAutoCompleteMatch partialCommand = do
 
 findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findFileNameAutoCompleteMatch partialFileName = do
-  allFiles <- listDirectory "."
+  allFiles <- listDirectoriesFirst "."
   if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
@@ -124,7 +124,7 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
   let path = getPathFromPartialNestedFileName partialNestedFileName
       partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
    in do
-        allFiles <- listDirectory ("." ++ [pathSeparator] ++ path)
+        allFiles <- listDirectoriesFirst ("." ++ [pathSeparator] ++ path)
         if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
@@ -147,3 +147,12 @@ addPathSeparatorIfDirectory path = do
   case pathType of
     PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
     PathIsFile -> pure (init path)
+
+listDirectoriesFirst :: FilePath -> IO [FilePath]
+listDirectoriesFirst dir = do
+  entries <- listDirectory dir
+
+  -- filterM is natively available in Control.Monad
+  dirs <- filterM (\e -> doesDirectoryExist (dir </> e)) entries
+  let files = entries \\ dirs -- Find the remaining files
+  return (sort dirs ++ sort files)
