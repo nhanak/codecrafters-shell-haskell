@@ -3,12 +3,12 @@ module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) whe
 import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
-import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort, (\\))
+import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
 import Data.Ord (comparing)
 import Debug.Trace (traceShow)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
-import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName, (</>))
+import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, stdin, stdout)
 
 data InputAutoCompletionState = Normal | OneTabPressed [String]
@@ -148,12 +148,3 @@ addPathSeparatorIfDirectory path = do
   case pathType of
     PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
     PathIsFile -> pure path
-
-listDirectoriesFirst :: FilePath -> IO [FilePath]
-listDirectoriesFirst dir = do
-  entries <- listDirectory dir
-
-  -- filterM is natively available in Control.Monad
-  dirs <- filterM (\e -> doesDirectoryExist (dir </> e)) entries
-  let files = entries \\ dirs -- Find the remaining files
-  return (sort dirs ++ sort files)
