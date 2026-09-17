@@ -13,6 +13,8 @@ import System.IO.NoBufferingWorkaround (getCharNoBuffering)
 
 data InputAutoCompletionState = Normal | OneTabPressed [String]
 
+data PathType = PathIsFile | PathIsDirectory
+
 handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAutoCompletionState -> IO String) -> IO String
 handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAutoCompletionSate of
   Normal -> case getAutoCompletionType inputSoFar of
@@ -27,7 +29,11 @@ handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
   wasFileNameAutoCompleteMatchFound <- findNestedFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
-    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch) getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) ->
+      let filePathPartial = (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch
+       in do
+            filePath <- addPathSeparatorIfDirectory filePathPartial
+            handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
@@ -35,7 +41,9 @@ handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
   wasFileNameAutoCompleteMatchFound <- findFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
-    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ fileNameAutoCompleteMatch) getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> do
+      filePath <- addPathSeparatorIfDirectory fileNameAutoCompleteMatch
+      handleAutoCompleteFound (unwords (init $ words inputSoFar) ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
@@ -76,7 +84,7 @@ handleAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> IO S
 handleAutoCompleteFound inferredCommand getInput' = do
   clearFromCursorToLineBeginning
   setCursorColumn 0
-  putStr ("$ " ++ inferredCommand)
+  putStr ("$ " ++ inferredCommand ++ " ")
   hFlush stdout
   getInput' inferredCommand Normal
 
@@ -121,10 +129,22 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
         if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
-findAutoCompleteMatchIO target options =
-  case findAutoCompleteMatch target options of
+findAutoCompleteMatchIO partial options =
+  case findAutoCompleteMatch partial options of
     NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
     (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
     (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
       Nothing -> pure (AutoCompleteMatchesFound matches)
       Just prefix -> pure (AutoCompleteMatchFound prefix)
+
+getPathType :: String -> IO PathType
+getPathType path = do
+  isFile <- doesFileExist path
+  if isFile then pure PathIsFile else pure PathIsDirectory
+
+addPathSeparatorIfDirectory :: String -> IO String
+addPathSeparatorIfDirectory path = do
+  pathType <- getPathType path
+  case pathType of
+    PathIsDirectory -> pure $ path ++ [pathSeparator]
+    PathIsFile -> pure path

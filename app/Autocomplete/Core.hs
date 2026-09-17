@@ -29,15 +29,15 @@ findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
 findBuiltInAutoCompleteMatch partialCommand = findAutoCompleteMatch partialCommand ["exit", "echo"]
 
 findAutoCompleteMatch :: String -> [String] -> WasAutoCompleteMatchFound
-findAutoCompleteMatch partialCommand builtins =
-  let filteredBuiltins = filter (doesPartialCommandMatchBuiltin partialCommand) builtins
-   in case filteredBuiltins of
+findAutoCompleteMatch partial options =
+  let filteredOptions = filter (doesPartialMatchOption partial) options
+   in case filteredOptions of
         [] -> NoAutoCompleteMatchFound
-        [x] -> AutoCompleteMatchFound ((head filteredBuiltins) ++ " ")
-        _ -> AutoCompleteMatchesFound filteredBuiltins
+        [x] -> AutoCompleteMatchFound (head filteredOptions)
+        _ -> AutoCompleteMatchesFound filteredOptions
 
-doesPartialCommandMatchBuiltin :: String -> String -> Bool
-doesPartialCommandMatchBuiltin partialCommand builtin = partialCommand /= "" && partialCommand `isPrefixOf` builtin
+doesPartialMatchOption :: String -> String -> Bool
+doesPartialMatchOption partial option = partial /= "" && partial `isPrefixOf` option
 
 getAutoCompletionType :: String -> AutoCompletionType
 getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 then CommandAutoCompletion else FileNameAutoCompletion
