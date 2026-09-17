@@ -46,7 +46,7 @@ getFileNameAutoCompletionType :: String -> FileNameAutoCompletionType
 getFileNameAutoCompletionType inputSoFar = if pathSeparator `elem` last (words inputSoFar) then NestedFileNameAutoCompletion else NonNestedFileNameAutoCompletion
 
 getFileNameFromInputSoFar :: String -> String
-getFileNameFromInputSoFar inputSoFar = last $ words inputSoFar
+getFileNameFromInputSoFar inputSoFar = if length (words inputSoFar) < 2 then "" else last $ (words inputSoFar)
 
 getFileNameFromPartialNestedFileName :: String -> String
 getFileNameFromPartialNestedFileName partialNestedFileName = last $ splitOn [pathSeparator] partialNestedFileName
