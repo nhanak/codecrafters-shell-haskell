@@ -118,7 +118,7 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
       partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
    in do
         allFiles <- listDirectory ("." ++ [pathSeparator] ++ path)
-        findAutoCompleteMatchIO partialFileName allFiles
+        if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO target options =
