@@ -143,7 +143,7 @@ getPathType path = do
 
 addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
-  pathType <- getPathType path
+  pathType <- getPathType ("." ++ [pathSeparator] ++ path)
   case pathType of
     PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
     PathIsFile -> pure (init path)
