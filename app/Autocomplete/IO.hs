@@ -147,7 +147,7 @@ addPathSeparatorIfDirectory path = do
   pathType <- getPathType ("." ++ [pathSeparator] ++ (init path))
   case pathType of
     PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
-    PathIsFile -> pure (init path)
+    PathIsFile -> pure path
 
 listDirectoriesFirst :: FilePath -> IO [FilePath]
 listDirectoriesFirst dir = do
