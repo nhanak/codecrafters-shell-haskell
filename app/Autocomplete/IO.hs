@@ -5,6 +5,7 @@ import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort, (\\))
 import Data.Ord (comparing)
+import Debug.Trace (traceShow)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName, (</>))
@@ -139,11 +140,11 @@ findAutoCompleteMatchIO partial options =
 getPathType :: String -> IO PathType
 getPathType path = do
   isDirectory <- doesDirectoryExist path
-  if isDirectory then pure PathIsDirectory else pure PathIsFile
+  if isDirectory then (pure PathIsDirectory) else (pure PathIsFile)
 
 addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
-  pathType <- getPathType ("." ++ [pathSeparator] ++ path)
+  pathType <- getPathType ("." ++ [pathSeparator] ++ (init path))
   case pathType of
     PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
     PathIsFile -> pure (init path)
