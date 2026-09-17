@@ -84,7 +84,7 @@ handleAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> IO S
 handleAutoCompleteFound inferredCommand getInput' = do
   clearFromCursorToLineBeginning
   setCursorColumn 0
-  putStr ("$ " ++ inferredCommand ++ " ")
+  putStr ("$ " ++ inferredCommand)
   hFlush stdout
   getInput' inferredCommand Normal
 
@@ -146,5 +146,5 @@ addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
   pathType <- getPathType path
   case pathType of
-    PathIsDirectory -> pure $ path ++ [pathSeparator]
-    PathIsFile -> pure path
+    PathIsDirectory -> pure $ (init path) ++ [pathSeparator]
+    PathIsFile -> pure (init path)
