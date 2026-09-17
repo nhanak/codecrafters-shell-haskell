@@ -139,8 +139,8 @@ findAutoCompleteMatchIO partial options =
 
 getPathType :: String -> IO PathType
 getPathType path = do
-  isFile <- doesFileExist path
-  if isFile then pure PathIsFile else pure PathIsDirectory
+  isDirectory <- doesDirectoryExist path
+  if isDirectory then pure PathIsDirectory else pure PathIsFile
 
 addPathSeparatorIfDirectory :: String -> IO String
 addPathSeparatorIfDirectory path = do
