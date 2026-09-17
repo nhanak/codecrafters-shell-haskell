@@ -118,7 +118,7 @@ findExecutableAutoCompleteMatch partialCommand = do
 findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findFileNameAutoCompleteMatch partialFileName = do
   allFiles <- listDirectory "."
-  if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
+  if partialFileName == "" && length allFiles > 0 then pure (AutoCompleteMatchesFound allFiles) else findAutoCompleteMatchIO partialFileName allFiles
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
@@ -126,7 +126,7 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
       partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
    in do
         allFiles <- listDirectory ("." ++ [pathSeparator] ++ path)
-        if partialFileName == "" then findAutoCompleteMatchIO (head allFiles) allFiles else findAutoCompleteMatchIO partialFileName allFiles
+        if partialFileName == "" && length allFiles > 0 then pure (AutoCompleteMatchesFound allFiles) else findAutoCompleteMatchIO partialFileName allFiles
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO partial options =
