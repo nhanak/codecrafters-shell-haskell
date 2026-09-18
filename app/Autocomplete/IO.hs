@@ -141,7 +141,7 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
           then case length allFilesWithExtensions of
             1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
             _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
-          else findAutoCompleteMatchIO partialFileName allFiles
+          else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO partial options =
