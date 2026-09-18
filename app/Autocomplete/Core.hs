@@ -1,4 +1,4 @@
-module Autocomplete.Core (addSpaceIfNotDirectory, getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName, getInputBeforeFilePath) where
+module Autocomplete.Core (addSpaceIfNotDirectory, pathIsDirectoryLike, getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName, getInputBeforeFilePath) where
 
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
 import Data.List.Split (splitOn)
@@ -59,3 +59,6 @@ getInputBeforeFilePath inputSoFar = if (length (words inputSoFar)) == 1 then hea
 
 addSpaceIfNotDirectory :: String -> String
 addSpaceIfNotDirectory path = if last path /= pathSeparator then path ++ " " else path
+
+pathIsDirectoryLike :: String -> Bool
+pathIsDirectoryLike path = pathSeparator `elem` path
