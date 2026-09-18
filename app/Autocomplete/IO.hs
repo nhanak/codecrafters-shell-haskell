@@ -134,7 +134,7 @@ findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
   let path = getPathFromPartialNestedFileName partialNestedFileName
       partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
-      root = "." ++ [pathSeparator] ++ path
+      root = "." ++ [pathSeparator] ++ path ++ [pathSeparator]
    in do
         allFiles <- listDirectory root
         allFilesWithExtensions <- addPathSeparatorToDirectories root allFiles
