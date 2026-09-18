@@ -126,8 +126,8 @@ followDirectoryWhileOnlyOneOption pathSoFar = do
   allFiles <- listDirectory pathSoFar
   allFilesWithExtensions <- addPathSeparatorToDirectories allFiles
   case length allFilesWithExtensions of
-    1 -> if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption (pathSoFar ++ (head allFilesWithExtensions)) else pure $ AutoCompleteMatchFound (pathSoFar ++ head allFilesWithExtensions)
-    _ -> pure $ AutoCompleteMatchFound pathSoFar
+    1 -> if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption (pathSoFar ++ (head allFilesWithExtensions)) else pure $ AutoCompleteMatchFound ((drop 2 pathSoFar) ++ head allFilesWithExtensions)
+    _ -> pure $ AutoCompleteMatchFound (drop 2 pathSoFar)
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
