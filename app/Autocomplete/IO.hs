@@ -137,7 +137,11 @@ findNestedFileNameAutoCompleteMatch partialNestedFileName =
    in do
         allFiles <- listDirectory ("." ++ [pathSeparator] ++ path)
         allFilesWithExtensions <- addPathSeparatorToDirectories allFiles
-        if partialFileName == "" && length allFilesWithExtensions > 0 then pure (AutoCompleteMatchesFound allFilesWithExtensions) else findAutoCompleteMatchIO partialFileName allFiles
+        if partialFileName == "" && length allFilesWithExtensions > 0
+          then case length allFilesWithExtensions of
+            1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
+            _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
+          else findAutoCompleteMatchIO partialFileName allFiles
 
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO partial options =
