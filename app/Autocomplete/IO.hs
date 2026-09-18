@@ -30,10 +30,8 @@ handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) ->
-      let filePathPartial = (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch
-       in do
-            filePath <- addPathSeparatorIfDirectory $ init filePathPartial
-            handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
+      let filePath = (getPathFromPartialNestedFileName $ getFileNameFromInputSoFar inputSoFar) ++ [pathSeparator] ++ fileNameAutoCompleteMatch
+       in handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
@@ -41,9 +39,7 @@ handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
   wasFileNameAutoCompleteMatchFound <- findFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
-    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> do
-      filePath <- addPathSeparatorIfDirectory $ init fileNameAutoCompleteMatch
-      handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
+    (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ fileNameAutoCompleteMatch) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
