@@ -1,4 +1,4 @@
-module Autocomplete.Core (getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName, getInputBeforeFilePath) where
+module Autocomplete.Core (addSpaceIfNotDirectory, getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName, getInputBeforeFilePath) where
 
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
 import Data.List.Split (splitOn)
@@ -33,7 +33,7 @@ findAutoCompleteMatch partial options =
   let filteredOptions = filter (doesPartialMatchOption partial) options
    in case filteredOptions of
         [] -> NoAutoCompleteMatchFound
-        [x] -> if last x /= pathSeparator then AutoCompleteMatchFound (x ++ " ") else AutoCompleteMatchFound x
+        [x] -> AutoCompleteMatchFound (addSpaceIfNotDirectory x)
         _ -> AutoCompleteMatchesFound filteredOptions
 
 doesPartialMatchOption :: String -> String -> Bool
@@ -56,3 +56,6 @@ getPathFromPartialNestedFileName partialNestedFileName = intercalate [pathSepara
 
 getInputBeforeFilePath :: String -> String
 getInputBeforeFilePath inputSoFar = if (length (words inputSoFar)) == 1 then head (words inputSoFar) else unwords (init $ words inputSoFar)
+
+addSpaceIfNotDirectory :: String -> String
+addSpaceIfNotDirectory path = if last path /= pathSeparator then path ++ " " else path

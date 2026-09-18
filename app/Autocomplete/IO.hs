@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
@@ -117,7 +117,7 @@ findFileNameAutoCompleteMatch partialFileName = do
   allFilesWithExtensions <- addPathSeparatorToDirectories allFiles
   if partialFileName == "" && length allFilesWithExtensions > 0
     then case length allFilesWithExtensions of
-      1 -> pure (AutoCompleteMatchFound (head allFilesWithExtensions ++ " "))
+      1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory (head allFilesWithExtensions)))
       _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
     else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
 
