@@ -44,9 +44,7 @@ handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> do
       filePath <- addPathSeparatorIfDirectory fileNameAutoCompleteMatch
       handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
-    (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> do
-      fileNameAutoCompleteMatchesWithSuffixes <- addPathSeparatorToDirectories (map (++ " ") fileNameAutoCompleteMatches)
-      handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatchesWithSuffixes getInput'
+    (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
 handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
 handleCommandNormalAutoCompletionState inputSoFar getInput' = do
@@ -120,8 +118,12 @@ findExecutableAutoCompleteMatch partialCommand = do
 findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findFileNameAutoCompleteMatch partialFileName = do
   allFiles <- listDirectory "."
-  allFilesWithExtensions <- mapM addPathSeparatorIfDirectory allFiles
-  if partialFileName == "" && length allFilesWithExtensions > 0 then pure (AutoCompleteMatchesFound allFilesWithExtensions) else findAutoCompleteMatchIO partialFileName allFiles
+  allFilesWithExtensions <- mapM addPathSeparatorIfDirectory (map (++ " ") allFiles)
+  if partialFileName == "" && length allFilesWithExtensions > 0
+    then case length allFilesWithExtensions of
+      1 -> pure (AutoCompleteMatchFound (head allFilesWithExtensions))
+      _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
+    else findAutoCompleteMatchIO partialFileName allFiles
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
