@@ -123,7 +123,7 @@ findFileNameAutoCompleteMatch partialFileName = do
     then case length allFilesWithExtensions of
       1 -> pure (AutoCompleteMatchFound (head allFilesWithExtensions))
       _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
-    else findAutoCompleteMatchIO partialFileName allFiles
+    else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
