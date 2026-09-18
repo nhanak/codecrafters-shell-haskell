@@ -33,7 +33,7 @@ findAutoCompleteMatch partial options =
   let filteredOptions = filter (doesPartialMatchOption partial) options
    in case filteredOptions of
         [] -> NoAutoCompleteMatchFound
-        [x] -> AutoCompleteMatchFound ((head filteredOptions) ++ " ")
+        [x] -> if last x /= pathSeparator then AutoCompleteMatchFound (x ++ " ") else AutoCompleteMatchFound x
         _ -> AutoCompleteMatchesFound filteredOptions
 
 doesPartialMatchOption :: String -> String -> Bool
