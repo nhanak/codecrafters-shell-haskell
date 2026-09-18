@@ -118,7 +118,7 @@ findFileNameAutoCompleteMatch partialFileName = do
   if partialFileName == "" && length allFilesWithExtensions > 0
     then case length allFilesWithExtensions of
       1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
-	      --if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption ("." ++ [pathSeparator] ++ head allFilesWithExtensions) else pure (AutoCompleteMatchFound (addSpaceIfNotDirectory (head allFilesWithExtensions)))
+      -- if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption ("." ++ [pathSeparator] ++ head allFilesWithExtensions) else pure (AutoCompleteMatchFound (addSpaceIfNotDirectory (head allFilesWithExtensions)))
       _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
     else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
 
@@ -127,7 +127,6 @@ followDirectoryWhileOnlyOneOption pathSoFar = do
   allFiles <- listDirectory pathSoFar
   allFilesWithExtensions <- addPathSeparatorToDirectories allFiles
   case length allFilesWithExtensions of
-    0 -> 
     1 -> if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption (pathSoFar ++ (head allFilesWithExtensions)) else pure $ AutoCompleteMatchFound ((drop 2 pathSoFar) ++ head allFilesWithExtensions)
     _ -> pure $ AutoCompleteMatchFound (drop 2 pathSoFar)
 
