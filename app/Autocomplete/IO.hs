@@ -150,7 +150,7 @@ findNestedFileNameAutoCompleteMatch' partialFileName root = do
                 then do
                   -- putStrLn ("Only 1 prefix matches: " ++ match ++ " " ++ show allFilesWithExtensions)
                   ans2 <- addPathSeparatorIfDirectory root matchWithoutLastSpace
-                  pure $ AutoCompleteMatchFound ans2
+                  if last ans2 == pathSeparator then pure $ AutoCompleteMatchFound ans2 else pure $ AutoCompleteMatchFound match
                 else pure $ AutoCompleteMatchFound match
         (AutoCompleteMatchesFound matches) -> pure $ AutoCompleteMatchesFound matches
 
