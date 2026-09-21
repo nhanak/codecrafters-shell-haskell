@@ -177,7 +177,7 @@ handleChangeDirectoryCommand path = do
 
 handleTypeCommand :: String -> IO EvaluatedResult
 handleTypeCommand args = case args of
-  x | x `elem` ["exit", "echo", "type", "pwd", "cd"] -> pure $ PrintStdOutAndContinue (x <> " is a shell builtin")
+  x | x `elem` ["exit", "echo", "type", "pwd", "cd", "complete"] -> pure $ PrintStdOutAndContinue (x <> " is a shell builtin")
   _ -> do
     executable <- _findExecutable args
     pure $ PrintStdOutAndContinue executable

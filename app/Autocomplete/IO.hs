@@ -116,14 +116,6 @@ findFileNameAutoCompleteMatch partialFileName =
   let root = "." ++ [pathSeparator]
    in findNestedFileNameAutoCompleteMatch' partialFileName root
 
--- allFiles <- listDirectory "."
--- allFilesWithExtensions <- addPathSeparatorToDirectories ("." ++ [pathSeparator]) allFiles
--- if partialFileName == "" && length allFilesWithExtensions > 0
--- then case length allFilesWithExtensions of
---  1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
--- _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
--- else findAutoCompleteMatchIO partialFileName allFiles
-
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
   let path = getPathFromPartialNestedFileName partialNestedFileName
@@ -141,14 +133,12 @@ findNestedFileNameAutoCompleteMatch' partialFileName root = do
       _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
     else do
       ans <- (findAutoCompleteMatchIO partialFileName allFiles)
-      -- putStrLn ("ans: " ++ show ans)
       case ans of
         NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
         (AutoCompleteMatchFound match) ->
           let matchWithoutLastSpace = if last match == ' ' then init match else match
            in if onlyOneOptionMatchesPrefix matchWithoutLastSpace allFilesWithExtensions
                 then do
-                  -- putStrLn ("Only 1 prefix matches: " ++ match ++ " " ++ show allFilesWithExtensions)
                   ans2 <- addPathSeparatorIfDirectory root matchWithoutLastSpace
                   if last ans2 == pathSeparator then pure $ AutoCompleteMatchFound ans2 else pure $ AutoCompleteMatchFound match
                 else pure $ AutoCompleteMatchFound match
@@ -156,7 +146,6 @@ findNestedFileNameAutoCompleteMatch' partialFileName root = do
           matchesWithExtensions <- addPathSeparatorToDirectories root matches
           pure $ AutoCompleteMatchesFound matchesWithExtensions
 
--- prefixes not working here because we add / to the end, so techincally it doesnt see the prefixes
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO partial options =
   case findAutoCompleteMatch partial options of
