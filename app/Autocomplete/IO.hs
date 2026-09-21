@@ -152,7 +152,9 @@ findNestedFileNameAutoCompleteMatch' partialFileName root = do
                   ans2 <- addPathSeparatorIfDirectory root matchWithoutLastSpace
                   if last ans2 == pathSeparator then pure $ AutoCompleteMatchFound ans2 else pure $ AutoCompleteMatchFound match
                 else pure $ AutoCompleteMatchFound match
-        (AutoCompleteMatchesFound matches) -> pure $ AutoCompleteMatchesFound matches
+        (AutoCompleteMatchesFound matches) -> do
+          matchesWithExtensions <- addPathSeparatorToDirectories root matches
+          pure $ AutoCompleteMatchesFound matchesWithExtensions
 
 -- prefixes not working here because we add / to the end, so techincally it doesnt see the prefixes
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
