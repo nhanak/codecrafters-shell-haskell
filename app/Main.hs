@@ -144,6 +144,7 @@ eval' command args = case command of
   "pwd" -> PrintStdOutAndContinue <$> getCurrentDirectory
   "cd" -> handleChangeDirectoryCommand (unwords args)
   "type" -> handleTypeCommand (unwords args)
+  "complete" -> handleCompleteCommand args
   _ -> handleUnknownCommand command args
 
 removeLastNewline :: String -> String
@@ -162,6 +163,13 @@ handleUnknownCommand command args = do
       case exitCode of
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
         ExitFailure _ -> pure (PrintStdOutAndPrintStdErrAndContinue (removeLastNewline stdOut) (removeLastNewline err))
+
+handleCompleteCommand :: [String] -> IO EvaluatedResult
+handleCompleteCommand args = case args of
+  (flag : command : xs) -> case flag of
+    "-p" -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specified")
+    _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
+  _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
 handleChangeDirectoryCommand path = do
