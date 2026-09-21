@@ -1,4 +1,21 @@
-module Autocomplete.Core (addSpaceIfNotDirectory, pathIsDirectoryLike, getFileNameFromInputSoFar, getAutoCompletionType, AutoCompletionType (..), WasAutoCompleteMatchFound (..), findLongestCommonPrefix, findBuiltInAutoCompleteMatch, findAutoCompleteMatch, getFileNameAutoCompletionType, FileNameAutoCompletionType (..), getFileNameFromPartialNestedFileName, getPathFromPartialNestedFileName, getInputBeforeFilePath) where
+module Autocomplete.Core
+  ( onlyOneOptionMatchesPrefix,
+    addSpaceIfNotDirectory,
+    pathIsDirectoryLike,
+    getFileNameFromInputSoFar,
+    getAutoCompletionType,
+    AutoCompletionType (..),
+    WasAutoCompleteMatchFound (..),
+    findLongestCommonPrefix,
+    findBuiltInAutoCompleteMatch,
+    findAutoCompleteMatch,
+    getFileNameAutoCompletionType,
+    FileNameAutoCompletionType (..),
+    getFileNameFromPartialNestedFileName,
+    getPathFromPartialNestedFileName,
+    getInputBeforeFilePath,
+  )
+where
 
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
 import Data.List.Split (splitOn)
@@ -24,6 +41,9 @@ getPrefixWithMostMembers options = fst $ maximumBy (comparing (length . snd)) op
 
 findCommonPrefixes :: String -> [String] -> [String]
 findCommonPrefixes prefix = filter (\option -> prefix /= option && prefix `isPrefixOf` option)
+
+onlyOneOptionMatchesPrefix :: String -> [String] -> Bool
+onlyOneOptionMatchesPrefix prefix options = length (filter (\option -> prefix `isPrefixOf` option) options) == 1
 
 findBuiltInAutoCompleteMatch :: String -> WasAutoCompleteMatchFound
 findBuiltInAutoCompleteMatch partialCommand = findAutoCompleteMatch partialCommand ["exit", "echo"]

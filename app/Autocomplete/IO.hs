@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, pathIsDirectoryLike)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, onlyOneOptionMatchesPrefix, pathIsDirectoryLike)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
@@ -112,38 +112,49 @@ findExecutableAutoCompleteMatch partialCommand = do
   findAutoCompleteMatchIO partialCommand allExecutables
 
 findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
-findFileNameAutoCompleteMatch partialFileName = do
-  allFiles <- listDirectory "."
-  allFilesWithExtensions <- addPathSeparatorToDirectories ("." ++ [pathSeparator]) allFiles
-  if partialFileName == "" && length allFilesWithExtensions > 0
-    then case length allFilesWithExtensions of
-      1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
-      -- if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption ("." ++ [pathSeparator] ++ head allFilesWithExtensions) else pure (AutoCompleteMatchFound (addSpaceIfNotDirectory (head allFilesWithExtensions)))
-      _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
-    else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
+findFileNameAutoCompleteMatch partialFileName =
+  let root = "." ++ [pathSeparator]
+   in findNestedFileNameAutoCompleteMatch' partialFileName root
 
--- followDirectoryWhileOnlyOneOption :: String -> IO WasAutoCompleteMatchFound
--- followDirectoryWhileOnlyOneOption pathSoFar = do
---  allFiles <- listDirectory pathSoFar
---  allFilesWithExtensions <- addPathSeparatorToDirectories allFiles
---  case length allFilesWithExtensions of
---    1 -> if pathIsDirectoryLike (head allFilesWithExtensions) then followDirectoryWhileOnlyOneOption (pathSoFar ++ (head allFilesWithExtensions)) else pure $ AutoCompleteMatchFound ((drop 2 pathSoFar) ++ head allFilesWithExtensions)
---    _ -> pure $ AutoCompleteMatchFound (drop 2 pathSoFar)
+-- allFiles <- listDirectory "."
+-- allFilesWithExtensions <- addPathSeparatorToDirectories ("." ++ [pathSeparator]) allFiles
+-- if partialFileName == "" && length allFilesWithExtensions > 0
+-- then case length allFilesWithExtensions of
+--  1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
+-- _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
+-- else findAutoCompleteMatchIO partialFileName allFiles
 
 findNestedFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findNestedFileNameAutoCompleteMatch partialNestedFileName =
   let path = getPathFromPartialNestedFileName partialNestedFileName
-      partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
       root = "." ++ [pathSeparator] ++ path ++ [pathSeparator]
-   in do
-        allFiles <- listDirectory root
-        allFilesWithExtensions <- addPathSeparatorToDirectories root allFiles
-        if partialFileName == "" && length allFilesWithExtensions > 0
-          then case length allFilesWithExtensions of
-            1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
-            _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
-          else findAutoCompleteMatchIO partialFileName allFilesWithExtensions
+      partialFileName = getFileNameFromPartialNestedFileName partialNestedFileName
+   in findNestedFileNameAutoCompleteMatch' partialFileName root
 
+findNestedFileNameAutoCompleteMatch' :: String -> String -> IO WasAutoCompleteMatchFound
+findNestedFileNameAutoCompleteMatch' partialFileName root = do
+  allFiles <- listDirectory root
+  allFilesWithExtensions <- addPathSeparatorToDirectories root allFiles
+  if partialFileName == "" && length allFilesWithExtensions > 0
+    then case length allFilesWithExtensions of
+      1 -> pure (AutoCompleteMatchFound (addSpaceIfNotDirectory $ head allFilesWithExtensions))
+      _ -> pure (AutoCompleteMatchesFound allFilesWithExtensions)
+    else do
+      ans <- (findAutoCompleteMatchIO partialFileName allFiles)
+      -- putStrLn ("ans: " ++ show ans)
+      case ans of
+        NoAutoCompleteMatchFound -> pure NoAutoCompleteMatchFound
+        (AutoCompleteMatchFound match) ->
+          let matchWithoutLastSpace = if last match == ' ' then init match else match
+           in if onlyOneOptionMatchesPrefix matchWithoutLastSpace allFilesWithExtensions
+                then do
+                  -- putStrLn ("Only 1 prefix matches: " ++ match ++ " " ++ show allFilesWithExtensions)
+                  ans2 <- addPathSeparatorIfDirectory root matchWithoutLastSpace
+                  pure $ AutoCompleteMatchFound ans2
+                else pure $ AutoCompleteMatchFound match
+        (AutoCompleteMatchesFound matches) -> pure $ AutoCompleteMatchesFound matches
+
+-- prefixes not working here because we add / to the end, so techincally it doesnt see the prefixes
 findAutoCompleteMatchIO :: String -> [String] -> IO WasAutoCompleteMatchFound
 findAutoCompleteMatchIO partial options =
   case findAutoCompleteMatch partial options of
