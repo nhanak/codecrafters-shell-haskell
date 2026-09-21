@@ -167,7 +167,7 @@ handleUnknownCommand command args = do
 handleCompleteCommand :: [String] -> IO EvaluatedResult
 handleCompleteCommand args = case args of
   (flag : command : xs) -> case flag of
-    "-p" -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specified")
+    "-p" -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specification")
     _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
   _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
 
