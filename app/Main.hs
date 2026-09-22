@@ -201,7 +201,7 @@ handleCompleteCommand args = case args of
     completerScript <- getCompleterScript command
     case completerScript of
       Nothing -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specification")
-      Just script -> pure $ PrintStdOutAndContinue ("complete -C " ++ (path script) ++ " " ++ command)
+      Just script -> pure $ PrintStdOutAndContinue ("complete -C \'" ++ (path script) ++ "\' " ++ command)
   _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
