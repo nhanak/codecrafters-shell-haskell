@@ -37,7 +37,7 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do
       out <- io $ readProcess (path completerScript) [] ""
-      handleAutoCompleteFound (inputSoFar ++ "derp" ++ out ++ " ") getInput'
+      handleAutoCompleteFound (inputSoFar ++ out ++ [' '] ++ "u") getInput'
 
 handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
