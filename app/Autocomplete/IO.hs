@@ -3,6 +3,8 @@ module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) whe
 import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, onlyOneOptionMatchesPrefix, pathIsDirectoryLike)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
+import Control.Monad.State
+import Core (CompleterScript (..), ShellState (..), getCompleterScript, getCompleterScriptCommands, io)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
 import Data.Ord (comparing)
 import Debug.Trace (traceShow)
@@ -10,23 +12,36 @@ import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, stdin, stdout)
+import System.Process (readProcess)
 
 data InputAutoCompletionState = Normal | OneTabPressed [String] deriving (Show)
 
 data PathType = PathIsFile | PathIsDirectory deriving (Show)
 
-handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAutoCompletionSate of
-  Normal -> case getAutoCompletionType inputSoFar of
-    CommandAutoCompletion -> handleCommandNormalAutoCompletionState inputSoFar getInput'
-    FileNameAutoCompletion -> case getFileNameAutoCompletionType inputSoFar of
-      NonNestedFileNameAutoCompletion -> handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput'
-      NestedFileNameAutoCompletion -> handleFileNameNestedNormalAutoCompletionState inputSoFar getInput'
+  Normal -> do
+    completerScriptCommands <- getCompleterScriptCommands
+    case getAutoCompletionType inputSoFar completerScriptCommands of
+      CommandAutoCompletion -> handleCommandNormalAutoCompletionState inputSoFar getInput'
+      CompleterScriptAutoCompletion -> handleCompleterScriptNormalAutoCompletionState inputSoFar getInput'
+      FileNameAutoCompletion -> case getFileNameAutoCompletionType inputSoFar of
+        NonNestedFileNameAutoCompletion -> handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput'
+        NestedFileNameAutoCompletion -> handleFileNameNestedNormalAutoCompletionState inputSoFar getInput'
   (OneTabPressed options) -> handleOneTabAutoCompletionState inputSoFar options getInput'
 
-handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleCompleterScriptNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
+  maybeCompleterScript <- getCompleterScript (head (words inputSoFar))
+  case maybeCompleterScript of
+    Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
+    Just completerScript -> do
+      out <- io $ readProcess (path completerScript) [] ""
+      handleAutoCompleteFound out getInput'
+
+handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
-  wasFileNameAutoCompleteMatchFound <- findNestedFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
+  wasFileNameAutoCompleteMatchFound <- io $ findNestedFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) ->
@@ -34,54 +49,89 @@ handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
        in handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ filePath) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
-handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleFileNameNonNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleFileNameNonNestedNormalAutoCompletionState inputSoFar getInput' = do
-  wasFileNameAutoCompleteMatchFound <- findFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
+  wasFileNameAutoCompleteMatchFound <- io $ findFileNameAutoCompleteMatch $ getFileNameFromInputSoFar inputSoFar
   case wasFileNameAutoCompleteMatchFound of
     NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
     (AutoCompleteMatchFound fileNameAutoCompleteMatch) -> handleAutoCompleteFound (getInputBeforeFilePath inputSoFar ++ " " ++ fileNameAutoCompleteMatch) getInput'
     (AutoCompleteMatchesFound fileNameAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar fileNameAutoCompleteMatches getInput'
 
-handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
-handleCommandNormalAutoCompletionState inputSoFar getInput' = do
-  case findBuiltInAutoCompleteMatch inputSoFar of
-    NoAutoCompleteMatchFound -> do
-      wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
-      case wasExecutableAutoCompleteMatchFound of
-        NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
-        (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch getInput'
-        (AutoCompleteMatchesFound executableAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar executableAutoCompleteMatches getInput'
-    (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch getInput'
-    (AutoCompleteMatchesFound builtInAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar builtInAutoCompleteMatches getInput'
+-- here for sure
+-- handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> IO String) -> StateT ShellState IO String
+-- handleCommandNormalAutoCompletionState inputSoFar getInput' = do
+--  case findBuiltInAutoCompleteMatch inputSoFar of
+--    NoAutoCompleteMatchFound -> do
+--      wasExecutableAutoCompleteMatchFound <- findExecutableAutoCompleteMatch inputSoFar
+--      case wasExecutableAutoCompleteMatchFound of
+--        NoAutoCompleteMatchFound -> handleNoAutoCompleteFound inputSoFar getInput'
+--       (AutoCompleteMatchFound executableAutoCompleteMatch) -> handleAutoCompleteFound executableAutoCompleteMatch getInput'
+--        (AutoCompleteMatchesFound executableAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar executableAutoCompleteMatches getInput'
+--    (AutoCompleteMatchFound builtInAutoCompleteMatch) -> handleAutoCompleteFound builtInAutoCompleteMatch getInput'
+--   (AutoCompleteMatchesFound builtInAutoCompleteMatches) -> handleAutoCompleteMatchesFound inputSoFar builtInAutoCompleteMatches getInput'
 
-handleAutoCompleteMatchesFound :: String -> [String] -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleCommandNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+handleCommandNormalAutoCompletionState inputSoFar getInput' = findAutoCompleteMatchOrContinue inputSoFar getInput' findBuiltInAutoCompleteMatchIO whenNoBuiltInAutoCompleteMatchFound
+
+findBuiltInAutoCompleteMatchIO :: String -> StateT ShellState IO WasAutoCompleteMatchFound
+findBuiltInAutoCompleteMatchIO inputSoFar = pure $ findBuiltInAutoCompleteMatch inputSoFar
+
+whenNoBuiltInAutoCompleteMatchFound :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+whenNoBuiltInAutoCompleteMatchFound inputSoFar getInput' = findAutoCompleteMatchOrContinue inputSoFar getInput' findExecutableAutoCompleteMatch whenNoExecutableAutoCompleteMatchFound
+
+-- whenNoBuiltInAutoCompleteMatchFound :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+-- whenNoBuiltInAutoCompleteMatchFound inputSoFar getInput' = findAutoCompleteMatchOrContinue inputSoFar getInput' findCompleterScriptAutoCompleteMatch whenNoCompleterScriptAutoCompleteMatchFound
+
+-- findCompleterScriptAutoCompleteMatch :: String -> StateT ShellState IO WasAutoCompleteMatchFound
+-- findCompleterScriptAutoCompleteMatch inputSoFar = do
+--  completerScript <- getCompleterScript inputSoFar
+--  io $ putStrLn ("inputSoFar: " ++ inputSoFar)
+--  case completerScript of
+--    Nothing -> pure NoAutoCompleteMatchFound
+--    Just x -> pure $ AutoCompleteMatchFound (path x)
+
+-- whenNoCompleterScriptAutoCompleteMatchFound :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+-- whenNoCompleterScriptAutoCompleteMatchFound inputSoFar getInput' = findAutoCompleteMatchOrContinue inputSoFar getInput' findExecutableAutoCompleteMatch whenNoExecutableAutoCompleteMatchFound
+
+whenNoExecutableAutoCompleteMatchFound :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+whenNoExecutableAutoCompleteMatchFound = handleNoAutoCompleteFound
+
+findAutoCompleteMatchOrContinue :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> (String -> StateT ShellState IO WasAutoCompleteMatchFound) -> (String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String) -> StateT ShellState IO String
+findAutoCompleteMatchOrContinue inputSoFar getInput' findAutoCompleteMatch whenNoAutoCompleteMatchFound = do
+  autoCompleteMatch <- findAutoCompleteMatch inputSoFar
+  case autoCompleteMatch of
+    NoAutoCompleteMatchFound -> whenNoAutoCompleteMatchFound inputSoFar getInput'
+    (AutoCompleteMatchFound match) -> handleAutoCompleteFound match getInput'
+    (AutoCompleteMatchesFound matches) -> handleAutoCompleteMatchesFound inputSoFar matches getInput'
+
+handleAutoCompleteMatchesFound :: String -> [String] -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleAutoCompleteMatchesFound inputSoFar matches getInput' = do
-  putStr ['\a']
-  hFlush stdout
+  io $ putStr ['\a']
+  io $ hFlush stdout
   getInput' inputSoFar (OneTabPressed matches)
 
-handleOneTabAutoCompletionState :: String -> [String] -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleOneTabAutoCompletionState :: String -> [String] -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleOneTabAutoCompletionState inputSoFar options getInput' = do
-  putStr ['\n']
-  hFlush stdout
-  putStrLn (intercalate "  " (sort options))
-  hFlush stdout
-  putStr ("$ " ++ inputSoFar)
-  hFlush stdout
+  io $ putStr ['\n']
+  io $ hFlush stdout
+  io $ putStrLn (intercalate "  " (sort options))
+  io $ hFlush stdout
+  io $ putStr ("$ " ++ inputSoFar)
+  io $ hFlush stdout
   getInput' inputSoFar Normal
 
-handleNoAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleNoAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleNoAutoCompleteFound inputSoFar getInput' = do
-  putStr ['\a']
-  hFlush stdout
+  io $ putStr ['\a']
+  io $ hFlush stdout
   getInput' inputSoFar Normal
 
-handleAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> IO String) -> IO String
+handleAutoCompleteFound :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleAutoCompleteFound inferredCommand getInput' = do
-  clearFromCursorToLineBeginning
-  setCursorColumn 0
-  putStr ("$ " ++ inferredCommand)
-  hFlush stdout
+  io $ clearFromCursorToLineBeginning
+  io $ setCursorColumn 0
+  io $ putStr ("$ " ++ inferredCommand)
+  io $ hFlush stdout
   getInput' inferredCommand Normal
 
 getAllExecutablesInDir :: String -> IO [String]
@@ -105,11 +155,11 @@ getAllExecutablesInDirs dirs = do
   allExecs <- mapM getAllExecutablesInDir dirs
   pure $ (map takeBaseName (concat allExecs))
 
-findExecutableAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
+findExecutableAutoCompleteMatch :: String -> StateT ShellState IO WasAutoCompleteMatchFound
 findExecutableAutoCompleteMatch partialCommand = do
-  execSearchPath <- getSearchPath
-  allExecutables <- getAllExecutablesInDirs execSearchPath
-  findAutoCompleteMatchIO partialCommand allExecutables
+  execSearchPath <- io $ getSearchPath
+  allExecutables <- io $ getAllExecutablesInDirs execSearchPath
+  io $ findAutoCompleteMatchIO partialCommand allExecutables
 
 findFileNameAutoCompleteMatch :: String -> IO WasAutoCompleteMatchFound
 findFileNameAutoCompleteMatch partialFileName =

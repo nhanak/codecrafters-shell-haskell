@@ -3,6 +3,8 @@ module Input (getInput) where
 import Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
+import Control.Monad.State
+import Core (CompleterScript (..), ShellState (..), io)
 import Data.List (isInfixOf, isPrefixOf, maximumBy)
 import Data.Ord (comparing)
 import System.Console.ANSI
@@ -11,32 +13,32 @@ import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName
 import System.IO (hFlush, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering)
 
-getInput :: IO String
+getInput :: StateT ShellState IO String
 getInput = getInput' "" Normal
 
-getInput' :: String -> InputAutoCompletionState -> IO String
+getInput' :: String -> InputAutoCompletionState -> StateT ShellState IO String
 getInput' inputSoFar inputAutoCompletionState = do
-  char <- getCharNoBuffering
+  char <- io $ getCharNoBuffering
   case char of
     '\b' ->
       if null inputSoFar
         then getInput' inputSoFar Normal
         else do
-          clearFromCursorToLineBeginning
-          setCursorColumn 0
-          putStr ("$ " ++ (init inputSoFar))
-          hFlush stdout
+          io $ clearFromCursorToLineBeginning
+          io $ setCursorColumn 0
+          io $ putStr ("$ " ++ (init inputSoFar))
+          io $ hFlush stdout
           getInput' (init inputSoFar) Normal
     '\r' -> do
-      putStr [char, '\n']
-      hFlush stdout
-      pure (inputSoFar ++ ['\r'])
+      io $ putStr [char, '\n']
+      io $ hFlush stdout
+      io $ pure (inputSoFar ++ ['\r'])
     '\n' -> do
-      putStr [char]
-      hFlush stdout
-      pure (inputSoFar ++ ['\n'])
+      io $ putStr [char]
+      io $ hFlush stdout
+      io $ pure (inputSoFar ++ ['\n'])
     '\t' -> handleAutoCompletion inputSoFar inputAutoCompletionState getInput'
     _ -> do
-      putStr [char]
-      hFlush stdout
+      io $ putStr [char]
+      io $ hFlush stdout
       getInput' (inputSoFar ++ [char]) Normal

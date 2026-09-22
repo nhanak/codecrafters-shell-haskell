@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Monad.State
+import Core (CompleterScript (..), ShellState (..), getCompleterScript, io)
 import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
@@ -19,10 +20,6 @@ data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdE
 
 data RedirectMode = Append | Overwrite deriving (Show)
 
-data ShellState = ShellState {completerScripts :: [CompleterScript], history :: [String]} deriving (Show)
-
-data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
-
 initialShellState :: ShellState
 initialShellState = ShellState {completerScripts = [], history = []}
 
@@ -32,14 +29,11 @@ main = do
   hSetEcho stdin False
   runStateT main' initialShellState >> pure ()
 
-io :: IO a -> StateT ShellState IO a
-io = liftIO
-
 main' :: StateT ShellState IO ()
 main' = do
   io $ putStr "$ "
   io $ hFlush stdout
-  args <- io getInput
+  args <- getInput
   evaluatedResult <- eval args
   handleEval evaluatedResult
 
@@ -179,17 +173,6 @@ registerCompleterScript :: String -> String -> StateT ShellState IO ()
 registerCompleterScript path command = do
   oldState <- get
   put $ ShellState {completerScripts = (completerScripts oldState) ++ [CompleterScript {path = path, command = command}], history = history oldState}
-
-getCompleterScript :: String -> StateT ShellState IO (Maybe CompleterScript)
-getCompleterScript command_ = do
-  curState <- get
-  pure $ getCompleterScript' command_ (completerScripts curState)
-
-getCompleterScript' :: String -> [CompleterScript] -> Maybe CompleterScript
-getCompleterScript' command_ completerScripts = case filter (\x -> command x == command_) completerScripts of
-  [] -> Nothing
-  [x] -> Just x
-  _ -> Nothing
 
 handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of

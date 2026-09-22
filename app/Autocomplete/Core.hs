@@ -24,7 +24,7 @@ import System.FilePath (pathSeparator)
 
 data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
 
-data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion deriving (Show)
+data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion | CompleterScriptAutoCompletion deriving (Show)
 
 data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion deriving (Show)
 
@@ -59,8 +59,17 @@ findAutoCompleteMatch partial options =
 doesPartialMatchOption :: String -> String -> Bool
 doesPartialMatchOption partial option = partial /= "" && partial `isPrefixOf` option
 
-getAutoCompletionType :: String -> AutoCompletionType
-getAutoCompletionType inputSoFar = if length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' then CommandAutoCompletion else FileNameAutoCompletion
+getAutoCompletionType :: String -> [String] -> AutoCompletionType
+getAutoCompletionType inputSoFar completerScriptCommands
+  | length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' = CommandAutoCompletion
+  | length (words inputSoFar) == 1 && (last inputSoFar == ' ') && isCompleterScriptCommand (head (words inputSoFar)) completerScriptCommands = CompleterScriptAutoCompletion
+  | otherwise =
+      FileNameAutoCompletion
+
+isCompleterScriptCommand :: String -> [String] -> Bool
+isCompleterScriptCommand command completerScriptCommands = command `elem` completerScriptCommands
+
+-- if length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' then CommandAutoCompletion else if length (words inputSoFar) == 1 && head (words inputSoFar) `elem` completerScriptCommands then CompleterScriptAutoCompletion else FileNameAutoCompletion
 
 getFileNameAutoCompletionType :: String -> FileNameAutoCompletionType
 getFileNameAutoCompletionType inputSoFar = if pathSeparator `elem` last (words inputSoFar) then NestedFileNameAutoCompletion else NonNestedFileNameAutoCompletion
