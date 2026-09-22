@@ -1,5 +1,6 @@
 module Main (main) where
 
+import Control.Monad.State
 import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
@@ -18,21 +19,31 @@ data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdE
 
 data RedirectMode = Append | Overwrite deriving (Show)
 
+data ShellState = ShellState {completerScripts :: [CompleterScript], history :: [String]} deriving (Show)
+
+data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
+
+initialShellState :: ShellState
+initialShellState = ShellState {completerScripts = [], history = []}
+
 main :: IO ()
 main = do
   initGetCharNoBuffering
   hSetEcho stdin False
-  main'
+  runStateT main' initialShellState >> pure ()
 
-main' :: IO ()
+io :: IO a -> StateT ShellState IO a
+io = liftIO
+
+main' :: StateT ShellState IO ()
 main' = do
-  putStr "$ "
-  hFlush stdout
-  args <- getInput
+  io $ putStr "$ "
+  io $ hFlush stdout
+  args <- io getInput
   evaluatedResult <- eval args
   handleEval evaluatedResult
 
-handleEval :: EvaluatedResult -> IO ()
+handleEval :: EvaluatedResult -> StateT ShellState IO ()
 handleEval evaluatedResult = case evaluatedResult of
   PrintStdOutAndContinue stdOut -> printAndContinue stdOut
   PrintStdErrAndContinue stdErr -> printAndContinue stdErr
@@ -44,10 +55,10 @@ handleEval evaluatedResult = case evaluatedResult of
   Continue -> main'
   Exit -> pure ()
 
-printAndContinue :: String -> IO ()
+printAndContinue :: String -> StateT ShellState IO ()
 printAndContinue str = do
-  printStrIfNonEmpty str
-  hFlush stdout
+  io $ printStrIfNonEmpty str
+  io $ hFlush stdout
   main'
 
 printStrIfNonEmpty :: String -> IO ()
@@ -74,25 +85,25 @@ countLines path = do
   contents <- readFile path
   return (length (lines contents))
 
-redirectStdOutAndContinue :: String -> String -> RedirectMode -> IO ()
+redirectStdOutAndContinue :: String -> String -> RedirectMode -> StateT ShellState IO ()
 redirectStdOutAndContinue stdOut file redirectMode = do
-  writeOrAppendFile stdOut file redirectMode
+  io $ writeOrAppendFile stdOut file redirectMode
   main'
 
-redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> IO ()
+redirectStdOutAndPrintStdErrAndContinue :: String -> String -> String -> RedirectMode -> StateT ShellState IO ()
 redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
-  writeOrAppendFile stdOut file redirectMode
-  printStrIfNonEmpty stdErr
+  io $ writeOrAppendFile stdOut file redirectMode
+  io $ printStrIfNonEmpty stdErr
   main'
 
-eval :: String -> IO EvaluatedResult
+eval :: String -> StateT ShellState IO EvaluatedResult
 eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args) redirectStdToFile
   where
     tokenizedArgs = tokenize untokenizedArgs
     command = head tokenizedArgs
     (args, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
 
-modifyEvaluatedResultWithRedirectFile :: IO EvaluatedResult -> RedirectStdToFile -> IO EvaluatedResult
+modifyEvaluatedResultWithRedirectFile :: StateT ShellState IO EvaluatedResult -> RedirectStdToFile -> StateT ShellState IO EvaluatedResult
 modifyEvaluatedResultWithRedirectFile ioEvaluatedResult redirectStdToFile = do
   evaluatedResult <- ioEvaluatedResult
   case redirectStdToFile of
@@ -137,15 +148,15 @@ hasStdErrRedirectOperator args = "2>" `elem` args || "2>>" `elem` args
 tokenIsNotRedirectOperator :: String -> Bool
 tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>" && token /= ">>" && token /= "1>>" && token /= "2>>"
 
-eval' :: String -> [String] -> IO EvaluatedResult
+eval' :: String -> [String] -> StateT ShellState IO EvaluatedResult
 eval' command args = case command of
   "exit" -> pure Exit
   "echo" -> pure $ PrintStdOutAndContinue (unwords args)
-  "pwd" -> PrintStdOutAndContinue <$> getCurrentDirectory
-  "cd" -> handleChangeDirectoryCommand (unwords args)
-  "type" -> handleTypeCommand (unwords args)
+  "pwd" -> io $ (PrintStdOutAndContinue <$> getCurrentDirectory)
+  "cd" -> io $ handleChangeDirectoryCommand (unwords args)
+  "type" -> io $ handleTypeCommand (unwords args)
   "complete" -> handleCompleteCommand args
-  _ -> handleUnknownCommand command args
+  _ -> io $ handleUnknownCommand command args
 
 removeLastNewline :: String -> String
 removeLastNewline [] = []
@@ -164,11 +175,33 @@ handleUnknownCommand command args = do
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
         ExitFailure _ -> pure (PrintStdOutAndPrintStdErrAndContinue (removeLastNewline stdOut) (removeLastNewline err))
 
-handleCompleteCommand :: [String] -> IO EvaluatedResult
+registerCompleterScript :: String -> String -> StateT ShellState IO ()
+registerCompleterScript path command = do
+  oldState <- get
+  put $ ShellState {completerScripts = (completerScripts oldState) ++ [CompleterScript {path = path, command = command}], history = history oldState}
+
+getCompleterScript :: String -> StateT ShellState IO (Maybe CompleterScript)
+getCompleterScript command_ = do
+  curState <- get
+  pure $ getCompleterScript' command_ (completerScripts curState)
+
+getCompleterScript' :: String -> [CompleterScript] -> Maybe CompleterScript
+getCompleterScript' command_ completerScripts = case filter (\x -> command x == command_) completerScripts of
+  [] -> Nothing
+  [x] -> Just x
+  _ -> Nothing
+
+handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of
-  (flag : command : xs) -> case flag of
-    "-p" -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specification")
-    _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
+  ["-C"] -> pure $ PrintStdOutAndContinue ("complete: -C flag used but no no completion specification")
+  ("-C" : path : command : rest) -> do
+    registerCompleterScript path command
+    pure $ Continue
+  ("-p" : command : xs) -> do
+    completerScript <- getCompleterScript command
+    case completerScript of
+      Nothing -> pure $ PrintStdOutAndContinue ("complete: " ++ command ++ ": no completion specification")
+      Just script -> pure $ PrintStdOutAndContinue ("completer -C " ++ (path script) ++ " " ++ command)
   _ -> pure $ PrintStdOutAndContinue ("incorrect usage of command complete")
 
 handleChangeDirectoryCommand :: String -> IO EvaluatedResult
