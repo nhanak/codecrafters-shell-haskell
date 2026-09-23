@@ -14,6 +14,7 @@ module Autocomplete.Core
     getFileNameFromPartialNestedFileName,
     getPathFromPartialNestedFileName,
     getInputBeforeFilePath,
+    breakInputSoFarIntoCompleterScriptArgs,
   )
 where
 
@@ -61,15 +62,18 @@ doesPartialMatchOption partial option = partial /= "" && partial `isPrefixOf` op
 
 getAutoCompletionType :: String -> [String] -> AutoCompletionType
 getAutoCompletionType inputSoFar completerScriptCommands
+  | length (words inputSoFar) > 0 && isCompleterScriptCommand (head $ words inputSoFar) completerScriptCommands = CompleterScriptAutoCompletion
   | length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' = CommandAutoCompletion
-  | length (words inputSoFar) == 1 && (last inputSoFar == ' ') && isCompleterScriptCommand (head (words inputSoFar)) completerScriptCommands = CompleterScriptAutoCompletion
-  | otherwise =
-      FileNameAutoCompletion
+  | otherwise = FileNameAutoCompletion
+
+breakInputSoFarIntoCompleterScriptArgs :: String -> [String]
+breakInputSoFarIntoCompleterScriptArgs inputSoFar = case words inputSoFar of
+  [arg1, arg2, arg3] -> [arg1, arg2, arg3]
+  [arg1, arg3] -> [arg1, "", arg3]
+  _ -> []
 
 isCompleterScriptCommand :: String -> [String] -> Bool
 isCompleterScriptCommand command completerScriptCommands = command `elem` completerScriptCommands
-
--- if length (words inputSoFar) == 1 && (last inputSoFar) /= ' ' then CommandAutoCompletion else if length (words inputSoFar) == 1 && head (words inputSoFar) `elem` completerScriptCommands then CompleterScriptAutoCompletion else FileNameAutoCompletion
 
 getFileNameAutoCompletionType :: String -> FileNameAutoCompletionType
 getFileNameAutoCompletionType inputSoFar = if pathSeparator `elem` last (words inputSoFar) then NestedFileNameAutoCompletion else NonNestedFileNameAutoCompletion
