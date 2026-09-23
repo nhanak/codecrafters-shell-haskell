@@ -45,7 +45,7 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
 
 handleMultipleLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleMultipleLineOutCompleterScript inputSoFar out getInput' =
-  let matches = splitOn ['\n'] out
+  let matches = filter (\x -> x /= "") (splitOn ['\n'] out)
    in handleAutoCompleteMatchesFound inputSoFar matches getInput'
 
 handleOneLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
