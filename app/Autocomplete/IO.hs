@@ -39,7 +39,7 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
   -- io $ putStrLn ("[DEBUG]: maybeShell: " ++ show maybeShell)
   -- io $ putStrLn ("[DEBUG]: inputSoFar: " ++ inputSoFar)
   -- io $ putStrLn ("[DEBUG]: maybeCompleterScript: " ++ show maybeCompleterScript)
-  io $ putStrLn ("[DEBUG]: args: " ++ show (breakInputSoFarIntoCompleterScriptArgs inputSoFar))
+  -- io $ putStrLn ("[DEBUG]: args: " ++ show (breakInputSoFarIntoCompleterScriptArgs inputSoFar))
   case maybeCompleterScript of
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do

@@ -68,8 +68,8 @@ getAutoCompletionType inputSoFar completerScriptCommands
 
 breakInputSoFarIntoCompleterScriptArgs :: String -> [String]
 breakInputSoFarIntoCompleterScriptArgs inputSoFar = case words inputSoFar of
-  [arg1, arg2, arg3] -> [arg1, arg2, arg3]
-  [arg1, arg3] -> [arg1, "", arg3]
+  [arg1, arg2, arg3] -> [arg1, arg3, arg2]
+  [arg1, arg3] -> [arg1, arg3, ""]
   _ -> []
 
 isCompleterScriptCommand :: String -> [String] -> Bool
