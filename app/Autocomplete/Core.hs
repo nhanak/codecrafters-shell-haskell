@@ -16,6 +16,7 @@ module Autocomplete.Core
     getInputBeforeFilePath,
     breakInputSoFarIntoCompleterScriptArgs,
     safeInit,
+    initOrHead,
   )
 where
 
@@ -93,6 +94,9 @@ getInputBeforeFilePath inputSoFar = if (length (words inputSoFar)) == 1 then hea
 
 safeInit :: String -> String
 safeInit str = if length str == 0 then "" else init str
+
+initOrHead :: [a] -> [a]
+initOrHead lister = if length lister < 2 then lister else init lister
 
 addSpaceIfNotDirectory :: String -> String
 addSpaceIfNotDirectory path = if last path /= pathSeparator then path ++ " " else path
