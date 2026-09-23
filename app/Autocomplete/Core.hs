@@ -39,7 +39,7 @@ count :: (Eq a) => a -> [a] -> Int
 count x xs = length (filter (== x) xs)
 
 outputSpansMultipleLines :: String -> Bool
-outputSpansMultipleLines out = count '\n' out > 1
+outputSpansMultipleLines out = count '\n' out > 2
 
 getStringByteLength :: String -> Int
 getStringByteLength str = B.length (BSU.fromString str)
