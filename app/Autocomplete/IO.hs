@@ -43,7 +43,7 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
   case maybeCompleterScript of
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do
-      out <- io $ readProcess "bash" ([(path completerScript)] ++ (breakInputSoFarIntoCompleterScriptArgs inputSoFar)) ""
+      out <- io $ readProcess (path completerScript) (breakInputSoFarIntoCompleterScriptArgs inputSoFar) ""
       handleAutoCompleteFound (inputSoFar ++ (init out) ++ " ") getInput'
 
 handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
