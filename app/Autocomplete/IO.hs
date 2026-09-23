@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, onlyOneOptionMatchesPrefix, pathIsDirectoryLike)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, onlyOneOptionMatchesPrefix, pathIsDirectoryLike, safeInit)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Control.Monad.State
@@ -37,7 +37,7 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do
       out <- io $ readProcess (path completerScript) (breakInputSoFarIntoCompleterScriptArgs inputSoFar) ""
-      let inputAutoCompleted = (unwords (init (words inputSoFar)) ++ " " ++ (init out) ++ " ")
+      let inputAutoCompleted = (unwords (init (words inputSoFar)) ++ " " ++ (safeInit out) ++ " ")
       if inputAutoCompleted == inputSoFar then handleNoAutoCompleteFound inputSoFar getInput' else handleAutoCompleteFound inputAutoCompleted getInput'
 
 handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String

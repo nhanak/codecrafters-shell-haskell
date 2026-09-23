@@ -15,6 +15,7 @@ module Autocomplete.Core
     getPathFromPartialNestedFileName,
     getInputBeforeFilePath,
     breakInputSoFarIntoCompleterScriptArgs,
+    safeInit,
   )
 where
 
@@ -89,6 +90,9 @@ getPathFromPartialNestedFileName partialNestedFileName = intercalate [pathSepara
 
 getInputBeforeFilePath :: String -> String
 getInputBeforeFilePath inputSoFar = if (length (words inputSoFar)) == 1 then head (words inputSoFar) else unwords (init $ words inputSoFar)
+
+safeInit :: String -> String
+safeInit str = if length str == 0 then "" else init str
 
 addSpaceIfNotDirectory :: String -> String
 addSpaceIfNotDirectory path = if last path /= pathSeparator then path ++ " " else path
