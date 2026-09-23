@@ -1,6 +1,6 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, initOrHead, onlyOneOptionMatchesPrefix, pathIsDirectoryLike, safeInit)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, getStringByteLength, initOrHead, onlyOneOptionMatchesPrefix, pathIsDirectoryLike, safeInit)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Control.Monad.State
@@ -10,6 +10,7 @@ import Data.Ord (comparing)
 import Debug.Trace (traceShow)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
+import System.Environment (setEnv)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, stdin, stdout)
 import System.Process (readProcess)
@@ -36,6 +37,8 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
   case maybeCompleterScript of
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do
+      io $ setEnv "COMP_LINE" inputSoFar
+      io $ setEnv "COMP_POINT" (show $ getStringByteLength inputSoFar)
       out <- io $ readProcess (path completerScript) (breakInputSoFarIntoCompleterScriptArgs inputSoFar) ""
       let inputAutoCompleted = if length out == 0 then inputSoFar else (unwords (initOrHead (words inputSoFar)) ++ " " ++ (safeInit out) ++ " ")
       if inputAutoCompleted == inputSoFar then handleNoAutoCompleteFound inputSoFar getInput' else handleAutoCompleteFound inputAutoCompleted getInput'

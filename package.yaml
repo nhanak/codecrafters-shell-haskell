@@ -20,6 +20,8 @@ dependencies:
   - no-buffering-workaround
   - split
   - mtl
+  - bytestring
+  - utf8-string
 
 executables:
   codecrafters-shell-exe:

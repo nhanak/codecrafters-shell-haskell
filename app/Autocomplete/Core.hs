@@ -17,9 +17,12 @@ module Autocomplete.Core
     breakInputSoFarIntoCompleterScriptArgs,
     safeInit,
     initOrHead,
+    getStringByteLength,
   )
 where
 
+import qualified Data.ByteString as B
+import qualified Data.ByteString.UTF8 as BSU
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
@@ -30,6 +33,9 @@ data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFou
 data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion | CompleterScriptAutoCompletion deriving (Show)
 
 data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion deriving (Show)
+
+getStringByteLength :: String -> Int
+getStringByteLength str = B.length (BSU.fromString str)
 
 findLongestCommonPrefix :: [String] -> Maybe String
 findLongestCommonPrefix options =
