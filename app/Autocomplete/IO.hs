@@ -10,7 +10,6 @@ import Data.Ord (comparing)
 import Debug.Trace (traceShow)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
-import System.Environment (lookupEnv)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, stdin, stdout)
 import System.Process (readProcess)
@@ -23,7 +22,6 @@ handleAutoCompletion :: String -> InputAutoCompletionState -> (String -> InputAu
 handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAutoCompletionSate of
   Normal -> do
     completerScriptCommands <- getCompleterScriptCommands
-    -- io $ putStrLn ("[DEBUG]: completerScriptCommands" ++ show completerScriptCommands)
     case getAutoCompletionType inputSoFar completerScriptCommands of
       CommandAutoCompletion -> handleCommandNormalAutoCompletionState inputSoFar getInput'
       CompleterScriptAutoCompletion -> handleCompleterScriptNormalAutoCompletionState inputSoFar getInput'
@@ -35,16 +33,11 @@ handleAutoCompletion inputSoFar inputAutoCompletionSate getInput' = case inputAu
 handleCompleterScriptNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
   maybeCompleterScript <- getCompleterScript (head (words inputSoFar))
-  -- maybeShell <- io $ lookupEnv "SHELL"
-  -- io $ putStrLn ("[DEBUG]: maybeShell: " ++ show maybeShell)
-  -- io $ putStrLn ("[DEBUG]: inputSoFar: " ++ inputSoFar)
-  -- io $ putStrLn ("[DEBUG]: maybeCompleterScript: " ++ show maybeCompleterScript)
-  -- io $ putStrLn ("[DEBUG]: args: " ++ show (breakInputSoFarIntoCompleterScriptArgs inputSoFar))
   case maybeCompleterScript of
     Nothing -> handleNoAutoCompleteFound inputSoFar getInput'
     Just completerScript -> do
       out <- io $ readProcess (path completerScript) (breakInputSoFarIntoCompleterScriptArgs inputSoFar) ""
-      handleAutoCompleteFound (inputSoFar ++ (init out) ++ " ") getInput'
+      handleAutoCompleteFound (unwords (init (words inputSoFar)) ++ " " ++ (init out) ++ " ") getInput'
 
 handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do
