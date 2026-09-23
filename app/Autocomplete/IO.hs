@@ -1,11 +1,12 @@
 module Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion) where
 
-import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, getStringByteLength, initOrHead, onlyOneOptionMatchesPrefix, pathIsDirectoryLike, safeInit)
+import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (..), WasAutoCompleteMatchFound (..), addSpaceIfNotDirectory, breakInputSoFarIntoCompleterScriptArgs, findAutoCompleteMatch, findBuiltInAutoCompleteMatch, findLongestCommonPrefix, getAutoCompletionType, getFileNameAutoCompletionType, getFileNameFromInputSoFar, getFileNameFromPartialNestedFileName, getInputBeforeFilePath, getPathFromPartialNestedFileName, getStringByteLength, initOrHead, onlyOneOptionMatchesPrefix, outputSpansMultipleLines, pathIsDirectoryLike, safeInit)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Control.Monad.State
 import Core (CompleterScript (..), ShellState (..), getCompleterScript, getCompleterScriptCommands, io)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
+import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import Debug.Trace (traceShow)
 import System.Console.ANSI
@@ -40,8 +41,17 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
       io $ setEnv "COMP_LINE" inputSoFar
       io $ setEnv "COMP_POINT" (show $ getStringByteLength inputSoFar)
       out <- io $ readProcess (path completerScript) (breakInputSoFarIntoCompleterScriptArgs inputSoFar) ""
-      let inputAutoCompleted = if length out == 0 then inputSoFar else (unwords (initOrHead (words inputSoFar)) ++ " " ++ (safeInit out) ++ " ")
-      if inputAutoCompleted == inputSoFar then handleNoAutoCompleteFound inputSoFar getInput' else handleAutoCompleteFound inputAutoCompleted getInput'
+      if outputSpansMultipleLines out then handleMultipleLineOutCompleterScript inputSoFar out getInput' else handleOneLineOutCompleterScript inputSoFar out getInput'
+
+handleMultipleLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+handleMultipleLineOutCompleterScript inputSoFar out getInput' =
+  let matches = splitOn ['\n'] out
+   in handleAutoCompleteMatchesFound inputSoFar matches getInput'
+
+handleOneLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
+handleOneLineOutCompleterScript inputSoFar out getInput' =
+  let inputAutoCompleted = if length out == 0 then inputSoFar else (unwords (initOrHead (words inputSoFar)) ++ " " ++ (safeInit out) ++ " ")
+   in if inputAutoCompleted == inputSoFar then handleNoAutoCompleteFound inputSoFar getInput' else handleAutoCompleteFound inputAutoCompleted getInput'
 
 handleFileNameNestedNormalAutoCompletionState :: String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleFileNameNestedNormalAutoCompletionState inputSoFar getInput' = do

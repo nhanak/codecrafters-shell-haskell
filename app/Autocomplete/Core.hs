@@ -18,6 +18,7 @@ module Autocomplete.Core
     safeInit,
     initOrHead,
     getStringByteLength,
+    outputSpansMultipleLines,
   )
 where
 
@@ -33,6 +34,12 @@ data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFou
 data AutoCompletionType = CommandAutoCompletion | FileNameAutoCompletion | CompleterScriptAutoCompletion deriving (Show)
 
 data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNameAutoCompletion deriving (Show)
+
+count :: (Eq a) => a -> [a] -> Int
+count x xs = length (filter (== x) xs)
+
+outputSpansMultipleLines :: String -> Bool
+outputSpansMultipleLines out = count '\n' out > 1
 
 getStringByteLength :: String -> Int
 getStringByteLength str = B.length (BSU.fromString str)
