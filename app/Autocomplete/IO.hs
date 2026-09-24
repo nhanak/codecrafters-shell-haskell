@@ -197,7 +197,7 @@ findAutoCompleteMatchIO partial options =
     (AutoCompleteMatchFound match) -> pure (AutoCompleteMatchFound match)
     (AutoCompleteMatchesFound matches) -> case (findLongestCommonPrefix matches) of
       Nothing -> pure (AutoCompleteMatchesFound matches)
-      Just prefix -> pure (AutoCompleteMatchFound prefix)
+      Just prefix -> if prefix == (last $ words partial) then pure (AutoCompleteMatchesFound matches) else pure (AutoCompleteMatchFound prefix)
 
 getPathType :: String -> IO PathType
 getPathType path = do
