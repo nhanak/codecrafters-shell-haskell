@@ -52,9 +52,6 @@ handleMultipleLineOutCompleterScript inputSoFar out getInput' =
           let autoCompleted = ((unwords (init (words inputSoFar))) ++ " " ++ prefix)
            in if autoCompleted == inputSoFar then handleAutoCompleteMatchesFound inputSoFar matches getInput' else handleAutoCompleteFound autoCompleted getInput'
 
--- Nothing -> traceShow ("[DEBUG]: NOTHING but matches are: " ++ show matches) (handleAutoCompleteMatchesFound inputSoFar matches getInput')
--- Just prefix -> traceShow ("[DEBUG]: JUST but mathces are: " ++ show matches) (handleAutoCompleteFound ((unwords (init (words inputSoFar))) ++ " " ++ prefix) getInput')
-
 handleOneLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleOneLineOutCompleterScript inputSoFar out getInput' =
   let inputAutoCompleted = if length out == 0 then inputSoFar else (unwords (initOrHead (words inputSoFar)) ++ " " ++ (safeInit out) ++ " ")

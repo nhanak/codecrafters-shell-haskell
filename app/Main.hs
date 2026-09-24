@@ -169,6 +169,11 @@ handleUnknownCommand command args = do
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
         ExitFailure _ -> pure (PrintStdOutAndPrintStdErrAndContinue (removeLastNewline stdOut) (removeLastNewline err))
 
+removeCompleterScript :: String -> StateT ShellState IO ()
+removeCompleterScript command_ = do
+  oldState <- get
+  put $ ShellState {completerScripts = filter (\completerScript -> command_ /= command completerScript) (completerScripts oldState), history = history oldState}
+
 registerCompleterScript :: String -> String -> StateT ShellState IO ()
 registerCompleterScript path command = do
   oldState <- get
@@ -179,6 +184,9 @@ handleCompleteCommand args = case args of
   ["-C"] -> pure $ PrintStdOutAndContinue ("complete: -C flag used but no no completion specification")
   ("-C" : path : command : rest) -> do
     registerCompleterScript path command
+    pure $ Continue
+  ("-r" : command : xs) -> do
+    removeCompleterScript command
     pure $ Continue
   ("-p" : command : xs) -> do
     completerScript <- getCompleterScript command
