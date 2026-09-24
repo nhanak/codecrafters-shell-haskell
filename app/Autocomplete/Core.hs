@@ -71,7 +71,7 @@ findLongestCommonPrefix :: [String] -> Maybe String
 findLongestCommonPrefix options = if not $ allOptionsShareSomeCommonPrefix options then Nothing else findLongestCommonPrefix' options
 
 findLongestCommonPrefix' :: [String] -> Maybe String
-findLongestCommonPrefix' options = traceShow prefixMap (if length prefixesWithMaxOccurences == 1 then Just $ head prefixesWithMaxOccurences else Nothing)
+findLongestCommonPrefix' options = if length prefixesWithMaxOccurences == 1 then Just $ head prefixesWithMaxOccurences else Nothing
   where
     prefixMap = countPrefixFrequencyInOptions options
     prefixesWithMaxOccurences = keepLongest $ (getPrefixesWithMaxOccurences prefixMap (getMaxOccurencesInPrefixMap prefixMap))
