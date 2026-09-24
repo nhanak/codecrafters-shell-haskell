@@ -22,6 +22,7 @@ dependencies:
   - mtl
   - bytestring
   - utf8-string
+  - containers
 
 executables:
   codecrafters-shell-exe:

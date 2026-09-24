@@ -26,7 +26,10 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as BSU
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy)
 import Data.List.Split (splitOn)
+import qualified Data.Map as Map
 import Data.Ord (comparing)
+import qualified Data.Set as Set
+import Debug.Trace (traceShow)
 import System.FilePath (pathSeparator)
 
 data WasAutoCompleteMatchFound = NoAutoCompleteMatchFound | AutoCompleteMatchFound String | AutoCompleteMatchesFound [String] deriving (Show)
@@ -38,16 +41,73 @@ data FileNameAutoCompletionType = NonNestedFileNameAutoCompletion | NestedFileNa
 count :: (Eq a) => a -> [a] -> Int
 count x xs = length (filter (== x) xs)
 
+keepLongest :: [String] -> [String]
+keepLongest [] = []
+keepLongest xs = filter (\s -> length s == maxLen) xs
+  where
+    maxLen = maximum (map length xs)
+
 outputSpansMultipleLines :: String -> Bool
 outputSpansMultipleLines out = count '\n' out > 1
 
 getStringByteLength :: String -> Int
 getStringByteLength str = B.length (BSU.fromString str)
 
+getAllPrefixesForOption :: String -> [String]
+getAllPrefixesForOption option = getAllPrefixesForOption' option []
+
+getAllPrefixesForOption' :: String -> [String] -> [String]
+getAllPrefixesForOption' option prefixes = if null option then prefixes else getAllPrefixesForOption' nextOption (prefixes ++ [option])
+  where
+    nextOption = reverse $ drop 1 $ reverse option
+
+getMaxOccurencesInPrefixMap :: Map.Map String Int -> Int
+getMaxOccurencesInPrefixMap prefixMap = Map.foldr (\x acc -> max x acc) 0 prefixMap
+
+getPrefixesWithMaxOccurences :: Map.Map String Int -> Int -> [String]
+getPrefixesWithMaxOccurences prefixMap maxOccurences = Map.foldrWithKey (\key x acc -> if x == maxOccurences then acc ++ [key] else acc) [] prefixMap
+
 findLongestCommonPrefix :: [String] -> Maybe String
-findLongestCommonPrefix options =
-  let prefixWithMostMembers = getPrefixWithMostMembers $ map (\option -> (option, findCommonPrefixes option options)) options
-   in if prefixOccursMoreThanOnce prefixWithMostMembers options then Just prefixWithMostMembers else Nothing
+findLongestCommonPrefix options = if not $ allOptionsShareSomeCommonPrefix options then Nothing else findLongestCommonPrefix' options
+
+findLongestCommonPrefix' :: [String] -> Maybe String
+findLongestCommonPrefix' options = traceShow prefixMap (if length prefixesWithMaxOccurences == 1 then Just $ head prefixesWithMaxOccurences else Nothing)
+  where
+    prefixMap = countPrefixFrequencyInOptions options
+    prefixesWithMaxOccurences = keepLongest $ (getPrefixesWithMaxOccurences prefixMap (getMaxOccurencesInPrefixMap prefixMap))
+
+-- let prefixMap = Map.fromList (map (\x -> (x, 0)) (Set.toList (Set.fromList (concat (map getAllPrefixes options)))))
+-- let prefixWithMostMembers = getPrefixWithMostMembers $ map (\option -> (option, findCommonPrefixes option options)) options
+-- in if prefixOccursMoreThanOnce prefixWithMostMembers options then Just prefixWithMostMembers else Nothing
+
+allOptionsShareSomeCommonPrefix :: [String] -> Bool
+allOptionsShareSomeCommonPrefix options = all (\option -> head option == initialChar) options
+  where
+    initialChar = head $ head options
+
+countPrefixFrequencyInOptions :: [String] -> Map.Map String Int
+countPrefixFrequencyInOptions options = countPrefixFrequencyInOptions' options (createPrefixMap options)
+
+countPrefixFrequencyInOptions' :: [String] -> Map.Map String Int -> Map.Map String Int
+countPrefixFrequencyInOptions' options prefixMap = foldr countPrefixFn prefixMap options
+
+countPrefixFn :: String -> Map.Map String Int -> Map.Map String Int
+countPrefixFn option prefixMap = foldr (incrementPrefixMapKeyIfMatch option) prefixMap (Map.keys prefixMap)
+
+incrementPrefixMapKeyIfMatch :: String -> String -> Map.Map String Int -> Map.Map String Int
+incrementPrefixMapKeyIfMatch option key prefixMap = if key `isPrefixOf` option then Map.adjust (+ 1) key prefixMap else prefixMap
+
+createPrefixMap :: [String] -> Map.Map String Int
+createPrefixMap options = Map.fromList (map createPrefixMapKeyValuePair (createListOfUniquePrefixesOfOptions options))
+
+createPrefixMapKeyValuePair :: String -> (String, Int)
+createPrefixMapKeyValuePair prefix = (prefix, 0)
+
+createListOfUniquePrefixesOfOptions :: [String] -> [String]
+createListOfUniquePrefixesOfOptions options = Set.toList (Set.fromList (concatMap getAllPrefixesForOption options))
+
+-- countPrefixOccurences :: Map String Int -> [String] -> Map String Int
+-- countPrefixOccurences prefixMap options =
 
 prefixOccursMoreThanOnce :: String -> [String] -> Bool
 prefixOccursMoreThanOnce prefix options = length (findCommonPrefixes prefix options) > 0
@@ -55,6 +115,7 @@ prefixOccursMoreThanOnce prefix options = length (findCommonPrefixes prefix opti
 getPrefixWithMostMembers :: [(String, [String])] -> String
 getPrefixWithMostMembers options = fst $ maximumBy (comparing (length . snd)) options
 
+-- findCommonPrefixes :: String
 findCommonPrefixes :: String -> [String] -> [String]
 findCommonPrefixes prefix = filter (\option -> prefix /= option && prefix `isPrefixOf` option)
 
