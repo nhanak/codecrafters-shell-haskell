@@ -48,7 +48,9 @@ handleMultipleLineOutCompleterScript inputSoFar out getInput' =
   let matches = filter (\x -> x /= "") (splitOn ['\n'] out)
    in case (findLongestCommonPrefix matches) of
         Nothing -> handleAutoCompleteMatchesFound inputSoFar matches getInput'
-        Just prefix -> handleAutoCompleteFound ((unwords (init (words inputSoFar))) ++ " " ++ prefix) getInput'
+        Just prefix ->
+          let autoCompleted = ((unwords (init (words inputSoFar))) ++ " " ++ prefix)
+           in if autoCompleted == inputSoFar then handleAutoCompleteMatchesFound inputSoFar matches getInput' else handleAutoCompleteFound autoCompleted getInput'
 
 -- Nothing -> traceShow ("[DEBUG]: NOTHING but matches are: " ++ show matches) (handleAutoCompleteMatchesFound inputSoFar matches getInput')
 -- Just prefix -> traceShow ("[DEBUG]: JUST but mathces are: " ++ show matches) (handleAutoCompleteFound ((unwords (init (words inputSoFar))) ++ " " ++ prefix) getInput')
