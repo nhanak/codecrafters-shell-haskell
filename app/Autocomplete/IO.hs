@@ -46,7 +46,8 @@ handleCompleterScriptNormalAutoCompletionState inputSoFar getInput' = do
 handleMultipleLineOutCompleterScript :: String -> String -> (String -> InputAutoCompletionState -> StateT ShellState IO String) -> StateT ShellState IO String
 handleMultipleLineOutCompleterScript inputSoFar out getInput' =
   let matches = filter (\x -> x /= "") (splitOn ['\n'] out)
-   in case (findLongestCommonPrefix matches) of
+      self = last $ words inputSoFar
+   in case (findLongestCommonPrefix (filter (\x -> x /= self) matches)) of
         Nothing -> handleAutoCompleteMatchesFound inputSoFar matches getInput'
         Just prefix -> handleAutoCompleteFound ((unwords (init (words inputSoFar))) ++ " " ++ prefix) getInput'
 
