@@ -1,8 +1,8 @@
-module ShellState.Core (getMostRecentBackgroundJobPid, getSecondMostRecentBackgroundJobPid, getFormattedBackgroundJobsString, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
+module ShellState.Core (getMostRecentBackgroundJobPid, getDoneBackgroundJobIds, getSecondMostRecentBackgroundJobPid, getFormattedBackgroundJobsString, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
 
 import System.Process (ProcessHandle)
 
-data ShellState = ShellState {backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, completerScripts :: [CompleterScript], history :: [String]}
+data ShellState = ShellState {backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, reusableBackgroundJobIds :: [Int], completerScripts :: [CompleterScript], history :: [String]}
 
 data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
 
@@ -11,7 +11,7 @@ data BackgroundJob = BackgroundJob {backgroundJobProcessHandle :: ProcessHandle,
 data BackgroundJobStatus = Running | Done deriving (Show, Eq)
 
 initialShellState :: ShellState
-initialShellState = ShellState {completerScripts = [], history = [], currentBackgroundJobId = 1, backgroundJobs = []}
+initialShellState = ShellState {completerScripts = [], history = [], currentBackgroundJobId = 1, reusableBackgroundJobIds = [], backgroundJobs = []}
 
 getCompleterScript' :: String -> [CompleterScript] -> Maybe CompleterScript
 getCompleterScript' command_ completerScripts = case filter (\x -> command x == command_) completerScripts of
@@ -45,3 +45,6 @@ getBackgroundJobMarker mostRecentPid secondMostRecentPid backgroundJobPid
   | mostRecentPid == backgroundJobPid = "+"
   | secondMostRecentPid == backgroundJobPid = "-"
   | otherwise = " "
+
+getDoneBackgroundJobIds :: [BackgroundJob] -> [Int]
+getDoneBackgroundJobIds backgroundJobs = map backgroundJobId (filter (\backgroundJob -> backgroundJobStatus backgroundJob == Done) backgroundJobs)

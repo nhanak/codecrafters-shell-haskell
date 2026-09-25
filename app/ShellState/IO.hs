@@ -1,7 +1,7 @@
 module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
 import Control.Monad.State
-import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript')
+import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript', getDoneBackgroundJobIds)
 import System.Process (ProcessHandle, getProcessExitCode)
 
 io :: IO a -> StateT ShellState IO a
@@ -20,8 +20,13 @@ getCompleterScriptCommands = do
 getNextBackgroundJobId :: StateT ShellState IO Int
 getNextBackgroundJobId = do
   prevState <- get
-  put $ prevState {currentBackgroundJobId = currentBackgroundJobId prevState + 1}
-  pure $ currentBackgroundJobId prevState
+  if null $ reusableBackgroundJobIds prevState
+    then do
+      put $ prevState {currentBackgroundJobId = currentBackgroundJobId prevState + 1}
+      pure $ currentBackgroundJobId prevState
+    else do
+      put $ prevState {reusableBackgroundJobIds = tail (reusableBackgroundJobIds prevState)}
+      pure $ head (reusableBackgroundJobIds prevState)
 
 removeCompleterScript :: String -> StateT ShellState IO ()
 removeCompleterScript command_ = do
@@ -65,5 +70,5 @@ markDoneBackgroundJob backgroundJob = do
 reapDoneBackgroundJobs :: StateT ShellState IO ()
 reapDoneBackgroundJobs = do
   prevState <- get
-  put $ prevState {backgroundJobs = (filter (\backgroundJob -> backgroundJobStatus backgroundJob /= Done) (backgroundJobs prevState))}
+  put $ prevState {reusableBackgroundJobIds = reusableBackgroundJobIds prevState ++ getDoneBackgroundJobIds (backgroundJobs prevState), backgroundJobs = (filter (\backgroundJob -> backgroundJobStatus backgroundJob /= Done) (backgroundJobs prevState))}
   pure ()
