@@ -1,4 +1,4 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
+module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
 import Control.Monad.State
 import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript')
@@ -42,6 +42,11 @@ getBackgroundJobs :: StateT ShellState IO [BackgroundJob]
 getBackgroundJobs = do
   curState <- get
   pure $ backgroundJobs curState
+
+getDoneBackgroundJobs :: StateT ShellState IO [BackgroundJob]
+getDoneBackgroundJobs = do
+  curState <- get
+  pure $ filter (\backgroundJob -> backgroundJobStatus backgroundJob == Done) (backgroundJobs curState)
 
 markDoneBackgroundJobs :: StateT ShellState IO ()
 markDoneBackgroundJobs = do

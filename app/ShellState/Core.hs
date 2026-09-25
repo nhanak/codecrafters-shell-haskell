@@ -1,4 +1,4 @@
-module ShellState.Core (formatBackgroundJobsForPrinting, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
+module ShellState.Core (getMostRecentBackgroundJobPid, getSecondMostRecentBackgroundJobPid, getFormattedBackgroundJobsString, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
 
 import System.Process (ProcessHandle)
 
@@ -18,6 +18,9 @@ getCompleterScript' command_ completerScripts = case filter (\x -> command x == 
   [] -> Nothing
   [x] -> Just x
   _ -> Nothing
+
+getFormattedBackgroundJobsString :: [BackgroundJob] -> [BackgroundJob] -> String
+getFormattedBackgroundJobsString allBackgroundJobs backgroundJobsToBeFormatted = init $ concat $ (map (formatBackgroundJobForPrinting (getMostRecentBackgroundJobPid allBackgroundJobs) (getSecondMostRecentBackgroundJobPid allBackgroundJobs) (length allBackgroundJobs)) backgroundJobsToBeFormatted)
 
 formatBackgroundJobsForPrinting :: [BackgroundJob] -> [String]
 formatBackgroundJobsForPrinting backgroundJobs = if null backgroundJobs then [] else map (formatBackgroundJobForPrinting (getMostRecentBackgroundJobPid backgroundJobs) (getSecondMostRecentBackgroundJobPid backgroundJobs) (length backgroundJobs)) backgroundJobs

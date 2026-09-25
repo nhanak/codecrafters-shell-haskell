@@ -7,8 +7,8 @@ import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
-import ShellState.Core (CompleterScript (..), ShellState (..), formatBackgroundJobsForPrinting, initialShellState)
-import ShellState.IO (getBackgroundJobs, getCompleterScript, getNextBackgroundJobId, io, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, removeCompleterScript)
+import ShellState.Core (CompleterScript (..), ShellState (..), getFormattedBackgroundJobsString, getMostRecentBackgroundJobPid, getSecondMostRecentBackgroundJobPid, initialShellState)
+import ShellState.IO (getBackgroundJobs, getCompleterScript, getDoneBackgroundJobs, getNextBackgroundJobId, io, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, removeCompleterScript)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
@@ -31,6 +31,7 @@ main = do
 
 main' :: StateT ShellState IO ()
 main' = do
+  handleDoneBackgroundJobs
   io $ putStr "$ "
   io $ hFlush stdout
   args <- getInput
@@ -48,6 +49,18 @@ handleEval evaluatedResult = case evaluatedResult of
   RedirectStdErrAndContinue stdErr file redirectMode -> redirectStdOutAndContinue stdErr file redirectMode
   Continue -> main'
   Exit -> pure ()
+
+handleDoneBackgroundJobs :: StateT ShellState IO ()
+handleDoneBackgroundJobs = do
+  markDoneBackgroundJobs
+  backgroundJobs <- getBackgroundJobs
+  doneBackgroundJobs <- getDoneBackgroundJobs
+  if null doneBackgroundJobs
+    then pure ()
+    else do
+      io $ putStrLn $ getFormattedBackgroundJobsString backgroundJobs doneBackgroundJobs
+      io $ hFlush stdout
+  reapDoneBackgroundJobs
 
 printAndContinue :: String -> StateT ShellState IO ()
 printAndContinue str = do
@@ -207,16 +220,12 @@ handleUnknownCommandBackground command args = do
           registerBackgroundJob backgroundId (fromIntegral pid) (unwords ([command] ++ args ++ ["&"])) processHandle
           pure $ PrintStdOutAndContinue ("[" ++ show backgroundId ++ "] " ++ show pid)
 
--- here need to:
--- 1: check each background process to see if it has exited
--- 2: if exited, change from Running to Done
--- 3. remove done jobs so it doesnt appear in next Done
 handleJobsCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleJobsCommand args = do
   markDoneBackgroundJobs
   backgroundJobs <- getBackgroundJobs
   reapDoneBackgroundJobs
-  if null backgroundJobs then pure Continue else pure $ PrintStdOutAndContinue $ init $ concat $ formatBackgroundJobsForPrinting backgroundJobs
+  if null backgroundJobs then pure Continue else pure $ PrintStdOutAndContinue $ getFormattedBackgroundJobsString backgroundJobs backgroundJobs
 
 handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of
