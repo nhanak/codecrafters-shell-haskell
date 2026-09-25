@@ -55,7 +55,7 @@ markDoneBackgroundJob backgroundJob = do
   maybeExitCode <- getProcessExitCode (backgroundJobProcessHandle backgroundJob)
   case maybeExitCode of
     Nothing -> pure $ backgroundJob
-    Just x -> pure $ backgroundJob {backgroundJobStatus = Done}
+    Just x -> pure $ backgroundJob {backgroundJobStatus = Done, backgroundJobCommand = (init $ init $ backgroundJobCommand backgroundJob)}
 
 reapDoneBackgroundJobs :: StateT ShellState IO ()
 reapDoneBackgroundJobs = do
