@@ -1,7 +1,7 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, registerCompleterScript) where
+module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, registerCompleterScript, registerBackgroundJob, getBackgroundJobs) where
 
 import Control.Monad.State
-import ShellState.Core (CompleterScript (..), ShellState (..), getCompleterScript')
+import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript')
 
 io :: IO a -> StateT ShellState IO a
 io = liftIO
@@ -19,8 +19,8 @@ getCompleterScriptCommands = do
 getNextBackgroundJobId :: StateT ShellState IO Int
 getNextBackgroundJobId = do
   prevState <- get
-  put $ prevState {backgroundJobId = backgroundJobId prevState + 1}
-  pure $ backgroundJobId prevState
+  put $ prevState {currentBackgroundJobId = currentBackgroundJobId prevState + 1}
+  pure $ currentBackgroundJobId prevState
 
 removeCompleterScript :: String -> StateT ShellState IO ()
 removeCompleterScript command_ = do
@@ -31,3 +31,13 @@ registerCompleterScript :: String -> String -> StateT ShellState IO ()
 registerCompleterScript path command = do
   prevState <- get
   put $ prevState {completerScripts = (completerScripts prevState) ++ [CompleterScript {path = path, command = command}]}
+
+registerBackgroundJob :: Int -> Int -> String -> StateT ShellState IO ()
+registerBackgroundJob jobId pid command = do
+  prevState <- get
+  put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
+
+getBackgroundJobs :: StateT ShellState IO [BackgroundJob]
+getBackgroundJobs = do
+  curState <- get
+  pure $ backgroundJobs curState

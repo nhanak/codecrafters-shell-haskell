@@ -7,8 +7,8 @@ import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
-import ShellState.Core (CompleterScript (..), ShellState (..), initialShellState)
-import ShellState.IO (getCompleterScript, getNextBackgroundJobId, io, registerCompleterScript, removeCompleterScript)
+import ShellState.Core (CompleterScript (..), ShellState (..), formatBackgroundJobsForPrinting, initialShellState)
+import ShellState.IO (getBackgroundJobs, getCompleterScript, getNextBackgroundJobId, io, registerBackgroundJob, registerCompleterScript, removeCompleterScript)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
@@ -194,19 +194,46 @@ handleUnknownCommandBackground command args = do
   if "not found" `isInfixOf` str
     then pure $ PrintStdErrAndContinue str
     else do
-      backgroundId <- getNextBackgroundJobId
-      evaluatedResultMvar <- io $ newEmptyMVar
+      maybePidMVar <- io $ newEmptyMVar
       _ <- io $ forkIO $ do
         (stdInHandle, stdOutHandle, stdErrhandle, processHandle) <- createProcess (proc (takeFileName str) args)
         maybePid <- getPid processHandle
-        case maybePid of
-          Just pid -> putMVar evaluatedResultMvar (io $ pure (PrintStdOutAndContinue ("[" ++ show backgroundId ++ "] " ++ show pid)))
-          Nothing -> putMVar evaluatedResultMvar (io $ pure Continue)
-      evaluatedResult <- io $ takeMVar evaluatedResultMvar
-      evaluatedResult
+        putMVar maybePidMVar maybePid
+      maybePid <- io $ takeMVar maybePidMVar
+      case maybePid of
+        Nothing -> pure Continue
+        Just pid -> do
+          backgroundId <- getNextBackgroundJobId
+          registerBackgroundJob backgroundId (fromIntegral pid) (unwords ([command] ++ args ++ ["&"]))
+          pure $ PrintStdOutAndContinue ("[" ++ show backgroundId ++ "] " ++ show pid)
+
+-- evaluatedResult <- io $ takeMVar evaluatedResultMvar
+-- evaluatedResult
+
+-- handleUnknownCommandBackground :: String -> [String] -> StateT ShellState IO EvaluatedResult
+-- handleUnknownCommandBackground command args = do
+--   str <- io $ _findExecutable command
+--   if "not found" `isInfixOf` str
+--     then pure $ PrintStdErrAndContinue str
+--     else do
+--       evaluatedResultMvar <- io $ newEmptyMVar
+--       backgroundId <- getNextBackgroundJobId
+--       _ <- io $ forkIO $ do
+--         (stdInHandle, stdOutHandle, stdErrhandle, processHandle) <- createProcess (proc (takeFileName str) args)
+--         maybePid <- getPid processHandle
+--         case maybePid of
+--           Just pid -> do
+--             registerBackgroundJob backgroundId pid (unwords ([command] ++ args))
+--             putMVar evaluatedResultMvar (io $ pure (PrintStdOutAndContinue ("[" ++ show backgroundId ++ "] " ++ show pid)))
+--           Nothing -> putMVar evaluatedResultMvar (io $ pure Continue)
+--       evaluatedResult <- io $ takeMVar evaluatedResultMvar
+--       evaluatedResult
+--
 
 handleJobsCommand :: [String] -> StateT ShellState IO EvaluatedResult
-handleJobsCommand args = pure $ Continue
+handleJobsCommand args = do
+  backgroundJobs <- getBackgroundJobs
+  pure $ PrintStdOutAndContinue $ concat $ formatBackgroundJobsForPrinting backgroundJobs
 
 handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of
