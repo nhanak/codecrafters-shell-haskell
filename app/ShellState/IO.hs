@@ -1,7 +1,8 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, registerCompleterScript, registerBackgroundJob, getBackgroundJobs) where
+module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
 import Control.Monad.State
 import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript')
+import System.Process (ProcessHandle, getProcessExitCode)
 
 io :: IO a -> StateT ShellState IO a
 io = liftIO
@@ -32,12 +33,32 @@ registerCompleterScript path command = do
   prevState <- get
   put $ prevState {completerScripts = (completerScripts prevState) ++ [CompleterScript {path = path, command = command}]}
 
-registerBackgroundJob :: Int -> Int -> String -> StateT ShellState IO ()
-registerBackgroundJob jobId pid command = do
+registerBackgroundJob :: Int -> Int -> String -> ProcessHandle -> StateT ShellState IO ()
+registerBackgroundJob jobId pid command processHandle = do
   prevState <- get
-  put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
+  put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobProcessHandle = processHandle, backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
 
 getBackgroundJobs :: StateT ShellState IO [BackgroundJob]
 getBackgroundJobs = do
   curState <- get
   pure $ backgroundJobs curState
+
+markDoneBackgroundJobs :: StateT ShellState IO ()
+markDoneBackgroundJobs = do
+  prevState <- get
+  nextBackgroundJobs <- io $ mapM markDoneBackgroundJob (backgroundJobs prevState)
+  put $ prevState {backgroundJobs = nextBackgroundJobs}
+  pure ()
+
+markDoneBackgroundJob :: BackgroundJob -> IO BackgroundJob
+markDoneBackgroundJob backgroundJob = do
+  maybeExitCode <- getProcessExitCode (backgroundJobProcessHandle backgroundJob)
+  case maybeExitCode of
+    Nothing -> pure $ backgroundJob
+    Just x -> pure $ backgroundJob {backgroundJobStatus = Done}
+
+reapDoneBackgroundJobs :: StateT ShellState IO ()
+reapDoneBackgroundJobs = do
+  prevState <- get
+  put $ prevState {backgroundJobs = (filter (\backgroundJob -> backgroundJobStatus backgroundJob /= Done) (backgroundJobs prevState))}
+  pure ()

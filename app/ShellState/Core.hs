@@ -1,12 +1,14 @@
 module ShellState.Core (formatBackgroundJobsForPrinting, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
 
-data ShellState = ShellState {backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, completerScripts :: [CompleterScript], history :: [String]} deriving (Show)
+import System.Process (ProcessHandle)
+
+data ShellState = ShellState {backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, completerScripts :: [CompleterScript], history :: [String]}
 
 data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
 
-data BackgroundJob = BackgroundJob {backgroundJobPid :: Int, backgroundJobId :: Int, backgroundJobStatus :: BackgroundJobStatus, backgroundJobCommand :: String} deriving (Show)
+data BackgroundJob = BackgroundJob {backgroundJobProcessHandle :: ProcessHandle, backgroundJobPid :: Int, backgroundJobId :: Int, backgroundJobStatus :: BackgroundJobStatus, backgroundJobCommand :: String}
 
-data BackgroundJobStatus = Running | Finished deriving (Show)
+data BackgroundJobStatus = Running | Done deriving (Show, Eq)
 
 initialShellState :: ShellState
 initialShellState = ShellState {completerScripts = [], history = [], currentBackgroundJobId = 1, backgroundJobs = []}
