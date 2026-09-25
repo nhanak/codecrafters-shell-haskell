@@ -30,4 +30,4 @@ removeCompleterScript command_ = do
 registerCompleterScript :: String -> String -> StateT ShellState IO ()
 registerCompleterScript path command = do
   prevState <- get
-  put $ prevState {completerScripts = (completerScripts prevState) ++ [CompleterScript {path = path}]}
+  put $ prevState {completerScripts = (completerScripts prevState) ++ [CompleterScript {path = path, command = command}]}
