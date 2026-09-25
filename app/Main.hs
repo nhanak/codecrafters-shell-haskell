@@ -150,6 +150,7 @@ eval' command args = case command of
   "cd" -> io $ handleChangeDirectoryCommand (unwords args)
   "type" -> io $ handleTypeCommand (unwords args)
   "complete" -> handleCompleteCommand args
+  "jobs" -> handleJobsCommand args
   _ -> io $ handleUnknownCommand command args
 
 removeLastNewline :: String -> String
@@ -178,6 +179,9 @@ registerCompleterScript :: String -> String -> StateT ShellState IO ()
 registerCompleterScript path command = do
   oldState <- get
   put $ ShellState {completerScripts = (completerScripts oldState) ++ [CompleterScript {path = path, command = command}], history = history oldState}
+
+handleJobsCommand :: [String] -> StateT ShellState IO EvaluatedResult
+handleJobsCommand args = pure $ Continue
 
 handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of
@@ -209,7 +213,7 @@ handleChangeDirectoryCommand path = do
 
 handleTypeCommand :: String -> IO EvaluatedResult
 handleTypeCommand args = case args of
-  x | x `elem` ["exit", "echo", "type", "pwd", "cd", "complete"] -> pure $ PrintStdOutAndContinue (x <> " is a shell builtin")
+  x | x `elem` ["exit", "echo", "type", "pwd", "cd", "complete", "jobs"] -> pure $ PrintStdOutAndContinue (x <> " is a shell builtin")
   _ -> do
     executable <- _findExecutable args
     pure $ PrintStdOutAndContinue executable
