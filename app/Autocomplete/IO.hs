@@ -4,11 +4,12 @@ import Autocomplete.Core (AutoCompletionType (..), FileNameAutoCompletionType (.
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Control.Monad.State
-import Core (CompleterScript (..), ShellState (..), getCompleterScript, getCompleterScriptCommands, io)
 import Data.List (intercalate, isInfixOf, isPrefixOf, maximumBy, sort)
 import Data.List.Split (splitOn)
 import Data.Ord (comparing)
 import Debug.Trace (traceShow)
+import ShellState.Core (CompleterScript (..), ShellState (..))
+import ShellState.IO (getCompleterScript, getCompleterScriptCommands, io)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Environment (setEnv)

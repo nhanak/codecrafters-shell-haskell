@@ -4,9 +4,10 @@ import Autocomplete.IO (InputAutoCompletionState (..), handleAutoCompletion)
 import Control.Exception (try)
 import Control.Monad (filterM, mapM)
 import Control.Monad.State
-import Core (CompleterScript (..), ShellState (..), io)
 import Data.List (isInfixOf, isPrefixOf, maximumBy)
 import Data.Ord (comparing)
+import ShellState.Core (CompleterScript (..), ShellState (..))
+import ShellState.IO (io)
 import System.Console.ANSI
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)

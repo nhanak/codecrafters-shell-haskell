@@ -1,17 +1,20 @@
 module Main (main) where
 
+import Control.Concurrent (MVar (..), forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.State
-import Core (CompleterScript (..), ShellState (..), getCompleterScript, io)
+import Core (ProcessPriority (..), getArgsWithoutProcessPrioritySignifier, getProcessPriority)
 import Data.List (isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
+import ShellState.Core (CompleterScript (..), ShellState (..), initialShellState)
+import ShellState.IO (getCompleterScript, getNextBackgroundJobId, io, registerCompleterScript, removeCompleterScript)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
 import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
-import System.Process (readProcessWithExitCode)
+import System.Process (createProcess, getPid, proc, readProcessWithExitCode)
 import Tokenizer (tokenize)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
@@ -19,9 +22,6 @@ data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue St
 data RedirectStdToFile = RedirectStdOutToFile RedirectMode String | RedirectStdErrToFile RedirectMode String | NoRedirect deriving (Show)
 
 data RedirectMode = Append | Overwrite deriving (Show)
-
-initialShellState :: ShellState
-initialShellState = ShellState {completerScripts = [], history = []}
 
 main :: IO ()
 main = do
@@ -91,11 +91,13 @@ redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   main'
 
 eval :: String -> StateT ShellState IO EvaluatedResult
-eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args) redirectStdToFile
+eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args processPriority) redirectStdToFile
   where
     tokenizedArgs = tokenize untokenizedArgs
     command = head tokenizedArgs
-    (args, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
+    (argsRaw, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
+    processPriority = getProcessPriority argsRaw
+    args = getArgsWithoutProcessPrioritySignifier argsRaw
 
 modifyEvaluatedResultWithRedirectFile :: StateT ShellState IO EvaluatedResult -> RedirectStdToFile -> StateT ShellState IO EvaluatedResult
 modifyEvaluatedResultWithRedirectFile ioEvaluatedResult redirectStdToFile = do
@@ -142,8 +144,8 @@ hasStdErrRedirectOperator args = "2>" `elem` args || "2>>" `elem` args
 tokenIsNotRedirectOperator :: String -> Bool
 tokenIsNotRedirectOperator token = token /= ">" && token /= "1>" && token /= "2>" && token /= ">>" && token /= "1>>" && token /= "2>>"
 
-eval' :: String -> [String] -> StateT ShellState IO EvaluatedResult
-eval' command args = case command of
+handleEvalForeground :: String -> [String] -> StateT ShellState IO EvaluatedResult
+handleEvalForeground command args = case command of
   "exit" -> pure Exit
   "echo" -> pure $ PrintStdOutAndContinue (unwords args)
   "pwd" -> io $ (PrintStdOutAndContinue <$> getCurrentDirectory)
@@ -152,6 +154,22 @@ eval' command args = case command of
   "complete" -> handleCompleteCommand args
   "jobs" -> handleJobsCommand args
   _ -> io $ handleUnknownCommand command args
+
+eval' :: String -> [String] -> ProcessPriority -> StateT ShellState IO EvaluatedResult
+eval' command args processPriority = case processPriority of
+  Foreground -> handleEvalForeground command args
+  Background -> handleEvalBackground command args
+
+handleEvalBackground :: String -> [String] -> StateT ShellState IO EvaluatedResult
+handleEvalBackground command args = case command of
+  "exit" -> pure Exit
+  "echo" -> pure $ PrintStdOutAndContinue (unwords args)
+  "pwd" -> io $ (PrintStdOutAndContinue <$> getCurrentDirectory)
+  "cd" -> io $ handleChangeDirectoryCommand (unwords args)
+  "type" -> io $ handleTypeCommand (unwords args)
+  "complete" -> handleCompleteCommand args
+  "jobs" -> handleJobsCommand args
+  _ -> handleUnknownCommandBackground command args
 
 removeLastNewline :: String -> String
 removeLastNewline [] = []
@@ -170,15 +188,22 @@ handleUnknownCommand command args = do
         ExitSuccess -> pure (PrintStdOutAndContinue (removeLastNewline stdOut))
         ExitFailure _ -> pure (PrintStdOutAndPrintStdErrAndContinue (removeLastNewline stdOut) (removeLastNewline err))
 
-removeCompleterScript :: String -> StateT ShellState IO ()
-removeCompleterScript command_ = do
-  oldState <- get
-  put $ ShellState {completerScripts = filter (\completerScript -> command_ /= command completerScript) (completerScripts oldState), history = history oldState}
-
-registerCompleterScript :: String -> String -> StateT ShellState IO ()
-registerCompleterScript path command = do
-  oldState <- get
-  put $ ShellState {completerScripts = (completerScripts oldState) ++ [CompleterScript {path = path, command = command}], history = history oldState}
+handleUnknownCommandBackground :: String -> [String] -> StateT ShellState IO EvaluatedResult
+handleUnknownCommandBackground command args = do
+  str <- io $ _findExecutable command
+  if "not found" `isInfixOf` str
+    then pure $ PrintStdErrAndContinue str
+    else do
+      backgroundId <- getNextBackgroundJobId
+      evaluatedResultMvar <- io $ newEmptyMVar
+      _ <- io $ forkIO $ do
+        (stdInHandle, stdOutHandle, stdErrhandle, processHandle) <- createProcess (proc (takeFileName str) args)
+        maybePid <- getPid processHandle
+        case maybePid of
+          Just pid -> putMVar evaluatedResultMvar (io $ pure (PrintStdOutAndContinue ("[" ++ show backgroundId ++ "] " ++ show pid)))
+          Nothing -> putMVar evaluatedResultMvar (io $ pure Continue)
+      evaluatedResult <- io $ takeMVar evaluatedResultMvar
+      evaluatedResult
 
 handleJobsCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleJobsCommand args = pure $ Continue
