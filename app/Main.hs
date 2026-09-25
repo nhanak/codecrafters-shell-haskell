@@ -233,7 +233,7 @@ handleUnknownCommandBackground command args = do
 handleJobsCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleJobsCommand args = do
   backgroundJobs <- getBackgroundJobs
-  pure $ PrintStdOutAndContinue $ drop 1 $ concat $ formatBackgroundJobsForPrinting backgroundJobs
+  pure $ PrintStdOutAndContinue $ init $ concat $ formatBackgroundJobsForPrinting backgroundJobs
 
 handleCompleteCommand :: [String] -> StateT ShellState IO EvaluatedResult
 handleCompleteCommand args = case args of
