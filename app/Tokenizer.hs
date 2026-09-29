@@ -1,4 +1,4 @@
-module Tokenizer (tokenize) where
+module Tokenizer (tokenize, groupTokenizedArgsByPipeline) where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
@@ -8,8 +8,8 @@ import Debug.Trace (traceShow)
 tokenize :: String -> [String]
 tokenize args = filter (/= "") (tokenize' $ (replaceDouble '\'' . replaceDouble '\"') (trim args))
 
-groupArgsByPipeline :: [String] -> [[String]]
-groupArgsByPipeline = splitOn ["/"]
+groupTokenizedArgsByPipeline :: [String] -> [[String]]
+groupTokenizedArgsByPipeline = splitOn ["/"]
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
