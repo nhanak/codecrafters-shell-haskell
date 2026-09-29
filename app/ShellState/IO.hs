@@ -1,4 +1,4 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
+module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerPipeProcessTokenizedArgs, getPipeProcessTokenizedArgs, clearPipeProcessTokenizedArgs, isPipeProcessRunning, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
 import Control.Monad.State
 import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript', getDoneBackgroundJobIds)
@@ -42,6 +42,26 @@ registerBackgroundJob :: Int -> Int -> String -> ProcessHandle -> StateT ShellSt
 registerBackgroundJob jobId pid command processHandle = do
   prevState <- get
   put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobProcessHandle = processHandle, backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
+
+registerPipeProcessTokenizedArgs :: [[String]] -> StateT ShellState IO ()
+registerPipeProcessTokenizedArgs tokenizedArgs = do
+  prevState <- get
+  put $ prevState {pipeProcessTokenizedArgs = tokenizedArgs}
+
+getPipeProcessTokenizedArgs :: StateT ShellState IO [[String]]
+getPipeProcessTokenizedArgs = do
+  prevState <- get
+  pure $ pipeProcessTokenizedArgs prevState
+
+clearPipeProcessTokenizedArgs :: StateT ShellState IO ()
+clearPipeProcessTokenizedArgs = do
+  prevState <- get
+  put $ prevState {pipeProcessTokenizedArgs = []}
+
+isPipeProcessRunning :: StateT ShellState IO Bool
+isPipeProcessRunning = do
+  curState <- get
+  pure $ not (null $ pipeProcessTokenizedArgs curState)
 
 getBackgroundJobs :: StateT ShellState IO [BackgroundJob]
 getBackgroundJobs = do

@@ -2,7 +2,7 @@ module ShellState.Core (getMostRecentBackgroundJobPid, getDoneBackgroundJobIds, 
 
 import System.Process (ProcessHandle)
 
-data ShellState = ShellState {backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, reusableBackgroundJobIds :: [Int], completerScripts :: [CompleterScript], history :: [String]}
+data ShellState = ShellState {pipeProcessTokenizedArgs :: [[String]], backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, reusableBackgroundJobIds :: [Int], completerScripts :: [CompleterScript], history :: [String]}
 
 data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
 
@@ -11,7 +11,7 @@ data BackgroundJob = BackgroundJob {backgroundJobProcessHandle :: ProcessHandle,
 data BackgroundJobStatus = Running | Done deriving (Show, Eq)
 
 initialShellState :: ShellState
-initialShellState = ShellState {completerScripts = [], history = [], currentBackgroundJobId = 1, reusableBackgroundJobIds = [], backgroundJobs = []}
+initialShellState = ShellState {pipeProcessTokenizedArgs = [], completerScripts = [], history = [], currentBackgroundJobId = 1, reusableBackgroundJobIds = [], backgroundJobs = []}
 
 getCompleterScript' :: String -> [CompleterScript] -> Maybe CompleterScript
 getCompleterScript' command_ completerScripts = case filter (\x -> command x == command_) completerScripts of
