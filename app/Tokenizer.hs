@@ -2,10 +2,14 @@ module Tokenizer (tokenize) where
 
 import Data.Char (isSpace)
 import Data.List (dropWhileEnd)
+import Data.List.Split (splitOn)
 import Debug.Trace (traceShow)
 
 tokenize :: String -> [String]
 tokenize args = filter (/= "") (tokenize' $ (replaceDouble '\'' . replaceDouble '\"') (trim args))
+
+groupArgsByPipeline :: [String] -> [[String]]
+groupArgsByPipeline = splitOn ["/"]
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace

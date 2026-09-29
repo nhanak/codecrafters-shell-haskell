@@ -2,8 +2,8 @@ module Main (main) where
 
 import Control.Concurrent (MVar (..), forkIO, newEmptyMVar, putMVar, takeMVar)
 import Control.Monad.State
-import Core (ProcessPriority (..), getArgsWithoutProcessPrioritySignifier, getProcessPriority)
-import Data.List (isInfixOf, isPrefixOf)
+import Core (ProcessPriority (..), getArgsWithoutProcessPrioritySignifier, getProcessPriority, isPipeline)
+import Data.List (foldl', isInfixOf, isPrefixOf)
 import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
@@ -15,7 +15,7 @@ import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName
 import System.IO (hFlush, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (createProcess, getPid, proc, readProcessWithExitCode)
-import Tokenizer (tokenize)
+import Tokenizer (groupTokenizedArgsByPipeline, tokenize)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
 
@@ -35,7 +35,7 @@ main' = do
   io $ putStr "$ "
   io $ hFlush stdout
   args <- getInput
-  evaluatedResult <- eval args
+  evaluatedResult <- evaluate args
   handleEval evaluatedResult
 
 handleEval :: EvaluatedResult -> StateT ShellState IO ()
@@ -103,10 +103,30 @@ redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
   io $ printStrIfNonEmpty stdErr
   main'
 
-eval :: String -> StateT ShellState IO EvaluatedResult
-eval untokenizedArgs = if null untokenizedArgs then pure Continue else modifyEvaluatedResultWithRedirectFile (eval' command args processPriority) redirectStdToFile
+evaluate :: String -> StateT ShellState IO EvaluatedResult
+evaluate untokenizedArgs
+  | null untokenizedArgs = pure Continue
+  | isPipeline tokenizedArgs = evaluatePipeline tokenizedArgs
+  | otherwise = evaluateNonPipeline tokenizedArgs
   where
     tokenizedArgs = tokenize untokenizedArgs
+
+evaluatePipeline :: [String] -> StateT ShellState IO EvaluatedResult
+evaluatePipeline tokenizedArgs = foldl' pipelineFold (pure Continue) groupedTokenizedArgs
+  where
+    groupedTokenizedArgs = groupTokenizedArgsByPipeline tokenizedArgs
+
+pipelineFold :: StateT ShellState IO EvaluatedResult -> [String] -> StateT ShellState IO EvaluatedResult
+pipelineFold accRaw tokenizedArgs = do
+  acc <- accRaw
+  case acc of
+    Continue -> evaluateNonPipeline tokenizedArgs
+    PrintStdOutAndContinue stdOut -> evaluateNonPipeline (tokenizedArgs ++ [stdOut])
+    otherwise -> pure Continue
+
+evaluateNonPipeline :: [String] -> StateT ShellState IO EvaluatedResult
+evaluateNonPipeline tokenizedArgs = modifyEvaluatedResultWithRedirectFile (eval' command args processPriority) redirectStdToFile
+  where
     command = head tokenizedArgs
     (argsRaw, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
     processPriority = getProcessPriority argsRaw

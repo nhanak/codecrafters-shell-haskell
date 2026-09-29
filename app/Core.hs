@@ -1,4 +1,4 @@
-module Core (getArgsWithoutProcessPrioritySignifier, getProcessPriority, ProcessPriority (..)) where
+module Core (isPipeline, getArgsWithoutProcessPrioritySignifier, getProcessPriority, ProcessPriority (..)) where
 
 data ProcessPriority = Foreground | Background deriving (Show, Eq)
 
@@ -7,3 +7,6 @@ getProcessPriority args = if length args > 0 && last args == "&" then Background
 
 getArgsWithoutProcessPrioritySignifier :: [String] -> [String]
 getArgsWithoutProcessPrioritySignifier args = if (getProcessPriority args) == Foreground then args else init args
+
+isPipeline :: [String] -> Bool
+isPipeline args = "|" `elem` args
