@@ -9,7 +9,7 @@ tokenize :: String -> [String]
 tokenize args = filter (/= "") (tokenize' $ (replaceDouble '\'' . replaceDouble '\"') (trim args))
 
 groupTokenizedArgsByPipeline :: [String] -> [[String]]
-groupTokenizedArgsByPipeline = splitOn ["/"]
+groupTokenizedArgsByPipeline = splitOn ["|"]
 
 trim :: String -> String
 trim = dropWhileEnd isSpace . dropWhile isSpace
