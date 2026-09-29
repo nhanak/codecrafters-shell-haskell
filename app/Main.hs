@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Concurrent (MVar (..), forkIO, newEmptyMVar, putMVar, takeMVar)
+import Control.Monad (mapM)
 import Control.Monad.State
 import Core (ProcessPriority (..), getArgsWithoutProcessPrioritySignifier, getProcessPriority, isPipeline)
 import Data.List (foldl', isInfixOf, isPrefixOf)
@@ -12,9 +13,9 @@ import ShellState.IO (getBackgroundJobs, getCompleterScript, getDoneBackgroundJo
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
-import System.IO (hFlush, hSetEcho, stdin, stdout)
+import System.IO (Handle, hFlush, hGetContents, hPutStr, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
-import System.Process (createProcess, getPid, proc, readProcessWithExitCode)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (CreatePipe), createProcess, getPid, proc, readProcessWithExitCode)
 import Tokenizer (groupTokenizedArgsByPipeline, tokenize)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
@@ -106,23 +107,48 @@ redirectStdOutAndPrintStdErrAndContinue stdOut file stdErr redirectMode = do
 evaluate :: String -> StateT ShellState IO EvaluatedResult
 evaluate untokenizedArgs
   | null untokenizedArgs = pure Continue
-  | isPipeline tokenizedArgs = evaluatePipeline tokenizedArgs
+  | isPipeline tokenizedArgs = do
+      res <- evaluatePipeline tokenizedArgs
+      case res of
+        Nothing -> pure Continue
+        Just stdOut -> pure $ PrintStdOutAndContinue stdOut
   | otherwise = evaluateNonPipeline tokenizedArgs
   where
     tokenizedArgs = tokenize untokenizedArgs
 
-evaluatePipeline :: [String] -> StateT ShellState IO EvaluatedResult
-evaluatePipeline tokenizedArgs = foldl' pipelineFold (pure Continue) groupedTokenizedArgs
-  where
-    groupedTokenizedArgs = groupTokenizedArgsByPipeline tokenizedArgs
+-- start all processes [done]
+-- loop through processes, passing stdout of one to the stdin of the next[done, but not done handling initially there is not stdin... and I dont think we need to deal with streams here]
+-- lets restrict it... try just one pass
+evaluatePipeline :: [String] -> StateT ShellState IO (Maybe String)
+evaluatePipeline tokenizedArgs = do
+  processes <- io $ mapM createPipelineProcess (groupTokenizedArgsByPipeline tokenizedArgs)
+  io $ runPipelineProcesses processes
 
-pipelineFold :: StateT ShellState IO EvaluatedResult -> [String] -> StateT ShellState IO EvaluatedResult
-pipelineFold accRaw tokenizedArgs = do
-  acc <- accRaw
-  case acc of
-    Continue -> evaluateNonPipeline tokenizedArgs
-    PrintStdOutAndContinue stdOut -> traceShow ("[DEBUG]: " ++ show (tokenizedArgs ++ [stdOut])) evaluateNonPipeline (tokenizedArgs ++ [stdOut])
-    otherwise -> pure Continue
+createPipelineProcess :: [String] -> IO (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
+createPipelineProcess tokenizedArgs = createProcess ((proc command args) {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe})
+  where
+    command = head tokenizedArgs
+    (argsRaw, redirectStdToFile) = getArgsAndRedirectStdToFile (tail tokenizedArgs)
+    processPriority = getProcessPriority argsRaw
+    args = getArgsWithoutProcessPrioritySignifier argsRaw
+
+runPipelineProcesses :: [(Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)] -> IO (Maybe String)
+runPipelineProcesses processes = foldl' runPipelineProcess (pure Nothing) processes
+
+runPipelineProcess :: IO (Maybe String) -> (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle) -> IO (Maybe String)
+runPipelineProcess _ (Nothing, _, _, _) = pure Nothing
+runPipelineProcess _ (_, Nothing, _, _) = pure Nothing
+runPipelineProcess prevStdOutIOMaybe (Just stdinHandle, Just stdoutHandle, _, _) = do
+  prevStdOutMaybe <- prevStdOutIOMaybe
+  case prevStdOutMaybe of
+    Nothing -> do
+      nextStdOut <- hGetContents stdoutHandle
+      pure (Just nextStdOut)
+    Just prevStdOut -> do
+      hPutStr stdinHandle prevStdOut
+      hFlush stdinHandle
+      nextStdOut <- hGetContents stdoutHandle
+      pure (Just nextStdOut)
 
 evaluateNonPipeline :: [String] -> StateT ShellState IO EvaluatedResult
 evaluateNonPipeline tokenizedArgs = modifyEvaluatedResultWithRedirectFile (eval' command args processPriority) redirectStdToFile
