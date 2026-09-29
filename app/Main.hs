@@ -111,7 +111,7 @@ evaluate untokenizedArgs
       res <- evaluatePipeline tokenizedArgs
       case res of
         Nothing -> pure Continue
-        Just stdOut -> pure $ PrintStdOutAndContinue stdOut
+        Just stdOut -> pure $ PrintStdOutAndContinue (init stdOut)
   | otherwise = evaluateNonPipeline tokenizedArgs
   where
     tokenizedArgs = tokenize untokenizedArgs
