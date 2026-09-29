@@ -121,7 +121,7 @@ pipelineFold accRaw tokenizedArgs = do
   acc <- accRaw
   case acc of
     Continue -> evaluateNonPipeline tokenizedArgs
-    PrintStdOutAndContinue stdOut -> evaluateNonPipeline (tokenizedArgs ++ [stdOut])
+    PrintStdOutAndContinue stdOut -> traceShow ("[DEBUG]: " ++ show (tokenizedArgs ++ [stdOut])) evaluateNonPipeline (tokenizedArgs ++ [stdOut])
     otherwise -> pure Continue
 
 evaluateNonPipeline :: [String] -> StateT ShellState IO EvaluatedResult
