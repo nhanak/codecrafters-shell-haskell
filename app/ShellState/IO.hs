@@ -1,7 +1,7 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerPipeProcessTokenizedArgs, getPipeProcessTokenizedArgs, clearPipeProcessTokenizedArgs, isPipeProcessRunning, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
+module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerPipelineProcesses, getPipelineProcesses, clearPipelineProcesses, isPipeProcessRunning, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
 import Control.Monad.State
-import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), ShellState (..), getCompleterScript', getDoneBackgroundJobIds)
+import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), PipelineProcess, ShellState (..), getCompleterScript', getDoneBackgroundJobIds)
 import System.Process (ProcessHandle, getProcessExitCode)
 
 io :: IO a -> StateT ShellState IO a
@@ -43,25 +43,25 @@ registerBackgroundJob jobId pid command processHandle = do
   prevState <- get
   put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobProcessHandle = processHandle, backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
 
-registerPipeProcessTokenizedArgs :: [[String]] -> StateT ShellState IO ()
-registerPipeProcessTokenizedArgs tokenizedArgs = do
+registerPipelineProcesses :: [PipelineProcess] -> StateT ShellState IO ()
+registerPipelineProcesses pipelineProcesses = do
   prevState <- get
-  put $ prevState {pipeProcessTokenizedArgs = tokenizedArgs}
+  put $ prevState {pipelineProcesses = pipelineProcesses}
 
-getPipeProcessTokenizedArgs :: StateT ShellState IO [[String]]
-getPipeProcessTokenizedArgs = do
+getPipelineProcesses :: StateT ShellState IO [PipelineProcess]
+getPipelineProcesses = do
   prevState <- get
-  pure $ pipeProcessTokenizedArgs prevState
+  pure $ pipelineProcesses prevState
 
-clearPipeProcessTokenizedArgs :: StateT ShellState IO ()
-clearPipeProcessTokenizedArgs = do
+clearPipelineProcesses :: StateT ShellState IO ()
+clearPipelineProcesses = do
   prevState <- get
-  put $ prevState {pipeProcessTokenizedArgs = []}
+  put $ prevState {pipelineProcesses = []}
 
 isPipeProcessRunning :: StateT ShellState IO Bool
 isPipeProcessRunning = do
   curState <- get
-  pure $ not (null $ pipeProcessTokenizedArgs curState)
+  pure $ not (null $ pipelineProcesses curState)
 
 getBackgroundJobs :: StateT ShellState IO [BackgroundJob]
 getBackgroundJobs = do

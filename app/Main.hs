@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
 import ShellState.Core (CompleterScript (..), ShellState (..), getFormattedBackgroundJobsString, getMostRecentBackgroundJobPid, getSecondMostRecentBackgroundJobPid, initialShellState)
-import ShellState.IO (clearPipeProcessTokenizedArgs, getBackgroundJobs, getCompleterScript, getDoneBackgroundJobs, getNextBackgroundJobId, getPipeProcessTokenizedArgs, io, isPipeProcessRunning, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, registerPipeProcessTokenizedArgs, removeCompleterScript)
+import ShellState.IO (clearPipelineProcesses, getBackgroundJobs, getCompleterScript, getDoneBackgroundJobs, getNextBackgroundJobId, getPipelineProcesses, io, isPipeProcessRunning, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, registerPipelineProcesses, removeCompleterScript)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
@@ -38,8 +38,8 @@ main' = do
 
 handlePipeProcessRunning :: StateT ShellState IO ()
 handlePipeProcessRunning = do
-  pipeProcessTokenizedArgs <- getPipeProcessTokenizedArgs
-  evaluatedResult <- evaluatePipeline pipeProcessTokenizedArgs
+  pipeProcesses <- getPipelineProcesses
+  evaluatedResult <- evaluateInProgressPipeline pipeProcesses
   handleEval evaluatedResult
 
 handleNoPipeProcessRunning :: StateT ShellState IO ()
@@ -125,16 +125,26 @@ evaluate untokenizedArgs
 
 evaluatePipeline :: [[String]] -> StateT ShellState IO EvaluatedResult
 evaluatePipeline tokenizedArgs = do
-  registerPipeProcessTokenizedArgs tokenizedArgs
   res <- evaluatePipeline' tokenizedArgs
-  case res of
-    Nothing -> pure Continue
-    Just stdOut -> pure $ PrintStdOutAndContinue (init stdOut)
+  handlePipelineEvaluationResponse (pure res)
 
 evaluatePipeline' :: [[String]] -> StateT ShellState IO (Maybe String)
 evaluatePipeline' tokenizedArgs = do
   processes <- io $ mapM createPipelineProcess tokenizedArgs
-  traceShow ("[DEBUG]: tokenizedArgs", show tokenizedArgs) (io $ runPipelineProcesses processes)
+  registerPipelineProcesses processes
+  io $ runPipelineProcesses processes
+
+handlePipelineEvaluationResponse :: StateT ShellState IO (Maybe String) -> StateT ShellState IO EvaluatedResult
+handlePipelineEvaluationResponse resIO = do
+  res <- resIO
+  case res of
+    Nothing -> pure Continue
+    Just stdOut -> pure $ PrintStdOutAndContinue (init stdOut)
+
+evaluateInProgressPipeline :: [(Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)] -> StateT ShellState IO EvaluatedResult
+evaluateInProgressPipeline processes = do
+  res <- io $ runPipelineProcesses processes
+  handlePipelineEvaluationResponse (pure res)
 
 createPipelineProcess :: [String] -> IO (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 createPipelineProcess tokenizedArgs = createProcess ((proc command args) {std_in = CreatePipe, std_out = CreatePipe, std_err = CreatePipe})

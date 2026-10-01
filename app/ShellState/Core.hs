@@ -1,8 +1,12 @@
-module ShellState.Core (getMostRecentBackgroundJobPid, getDoneBackgroundJobIds, getSecondMostRecentBackgroundJobPid, getFormattedBackgroundJobsString, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
+module ShellState.Core (PipelineProcess, getMostRecentBackgroundJobPid, getDoneBackgroundJobIds, getSecondMostRecentBackgroundJobPid, getFormattedBackgroundJobsString, ShellState (..), CompleterScript (..), initialShellState, getCompleterScript', BackgroundJobStatus (..), BackgroundJob (..)) where
 
+import System.IO (Handle)
 import System.Process (ProcessHandle)
 
-data ShellState = ShellState {pipeProcessTokenizedArgs :: [[String]], backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, reusableBackgroundJobIds :: [Int], completerScripts :: [CompleterScript], history :: [String]}
+type PipelineProcess = (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
+
+-- I shouldn't be keeping pipeProcess tokenized args here, I should be keeping the actual processes, see if they have exited
+data ShellState = ShellState {pipelineProcesses :: [PipelineProcess], backgroundJobs :: [BackgroundJob], currentBackgroundJobId :: Int, reusableBackgroundJobIds :: [Int], completerScripts :: [CompleterScript], history :: [String]}
 
 data CompleterScript = CompleterScript {path :: String, command :: String} deriving (Show)
 
@@ -11,7 +15,7 @@ data BackgroundJob = BackgroundJob {backgroundJobProcessHandle :: ProcessHandle,
 data BackgroundJobStatus = Running | Done deriving (Show, Eq)
 
 initialShellState :: ShellState
-initialShellState = ShellState {pipeProcessTokenizedArgs = [], completerScripts = [], history = [], currentBackgroundJobId = 1, reusableBackgroundJobIds = [], backgroundJobs = []}
+initialShellState = ShellState {pipelineProcesses = [], completerScripts = [], history = [], currentBackgroundJobId = 1, reusableBackgroundJobIds = [], backgroundJobs = []}
 
 getCompleterScript' :: String -> [CompleterScript] -> Maybe CompleterScript
 getCompleterScript' command_ completerScripts = case filter (\x -> command x == command_) completerScripts of
