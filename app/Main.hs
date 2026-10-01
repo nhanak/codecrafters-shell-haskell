@@ -9,7 +9,7 @@ import qualified Data.Text as T
 import Debug.Trace (traceShow)
 import Input (getInput)
 import ShellState.Core (CompleterScript (..), ShellState (..), getFormattedBackgroundJobsString, getMostRecentBackgroundJobPid, getSecondMostRecentBackgroundJobPid, initialShellState)
-import ShellState.IO (clearPipelineProcesses, getBackgroundJobs, getCompleterScript, getDoneBackgroundJobs, getNextBackgroundJobId, getPipelineProcesses, io, isPipeProcessRunning, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, registerPipelineProcesses, removeCompleterScript)
+import ShellState.IO (clearPipelineProcesses, getBackgroundJobs, getCompleterScript, getDoneBackgroundJobs, getNextBackgroundJobId, getPipelineProcesses, io, isPipeProcessRunning, markDoneBackgroundJobs, reapDoneBackgroundJobs, registerBackgroundJob, registerCompleterScript, registerPipelineProcesses, removeCompleterScript, unregisterPipelineProcessesIfDone)
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
@@ -126,6 +126,8 @@ evaluate untokenizedArgs
 evaluatePipeline :: [[String]] -> StateT ShellState IO EvaluatedResult
 evaluatePipeline tokenizedArgs = do
   res <- evaluatePipeline' tokenizedArgs
+  -- io $ putStrLn ("[DEBUG]: unregistering pipeline processes now")
+  unregisterPipelineProcessesIfDone
   handlePipelineEvaluationResponse (pure res)
 
 evaluatePipeline' :: [[String]] -> StateT ShellState IO (Maybe String)

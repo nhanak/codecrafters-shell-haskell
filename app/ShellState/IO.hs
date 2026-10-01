@@ -1,8 +1,10 @@
-module ShellState.IO (io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerPipelineProcesses, getPipelineProcesses, clearPipelineProcesses, isPipeProcessRunning, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
+module ShellState.IO (unregisterPipelineProcessesIfDone, io, getCompleterScript, getCompleterScriptCommands, getNextBackgroundJobId, removeCompleterScript, getDoneBackgroundJobs, registerPipelineProcesses, getPipelineProcesses, clearPipelineProcesses, isPipeProcessRunning, registerCompleterScript, registerBackgroundJob, getBackgroundJobs, markDoneBackgroundJobs, reapDoneBackgroundJobs) where
 
+import Control.Monad (mapM, when)
 import Control.Monad.State
+import Data.Foldable (traverse_)
 import ShellState.Core (BackgroundJob (..), BackgroundJobStatus (..), CompleterScript (..), PipelineProcess, ShellState (..), getCompleterScript', getDoneBackgroundJobIds)
-import System.Process (ProcessHandle, getProcessExitCode)
+import System.Process (ProcessHandle, cleanupProcess, getProcessExitCode)
 
 io :: IO a -> StateT ShellState IO a
 io = liftIO
@@ -42,6 +44,30 @@ registerBackgroundJob :: Int -> Int -> String -> ProcessHandle -> StateT ShellSt
 registerBackgroundJob jobId pid command processHandle = do
   prevState <- get
   put $ prevState {backgroundJobs = backgroundJobs prevState ++ [BackgroundJob {backgroundJobProcessHandle = processHandle, backgroundJobCommand = command, backgroundJobId = jobId, backgroundJobPid = pid, backgroundJobStatus = Running}]}
+
+unregisterPipelineProcessesIfDone :: StateT ShellState IO ()
+unregisterPipelineProcessesIfDone = do
+  prevState <- get
+  areAllPipelineProcessesAreDone <- io $ allPipelineProcessesAreDone prevState
+  -- io $ putStrLn ("[DEBUG]: allProcessesAreDone: " ++ show areAllPipelineProcessesAreDone)
+  when areAllPipelineProcessesAreDone $
+    do
+      io $ cleanupOrphanPipelineProcesses (pipelineProcesses prevState)
+      put $ prevState {pipelineProcesses = []}
+
+cleanupOrphanPipelineProcesses :: [PipelineProcess] -> IO ()
+cleanupOrphanPipelineProcesses processes = traverse_ cleanupProcess processes
+
+allPipelineProcessesAreDone :: ShellState -> IO Bool
+allPipelineProcessesAreDone shellState = do
+  arePipelineProcessesDone <- mapM isPipelineProcessDone (pipelineProcesses shellState)
+  -- putStrLn ("[DEBUG]: allProcessesAreDone inner: " ++ show arePipelineProcessesDone)
+  pure $ True `elem` arePipelineProcessesDone
+
+isPipelineProcessDone :: PipelineProcess -> IO Bool
+isPipelineProcessDone (_, _, _, ph) = do
+  exitCode <- getProcessExitCode ph
+  if null exitCode then pure False else pure True
 
 registerPipelineProcesses :: [PipelineProcess] -> StateT ShellState IO ()
 registerPipelineProcesses pipelineProcesses = do
