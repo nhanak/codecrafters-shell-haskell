@@ -49,6 +49,7 @@ unregisterPipelineProcessesIfDone :: StateT ShellState IO ()
 unregisterPipelineProcessesIfDone = do
   prevState <- get
   areAllPipelineProcessesAreDone <- io $ allPipelineProcessesAreDone prevState
+  -- io $ putStrLn ("[DEBUG]: unregisterPipelineProcessesIfDone")
   -- io $ putStrLn ("[DEBUG]: allProcessesAreDone: " ++ show areAllPipelineProcessesAreDone)
   when areAllPipelineProcessesAreDone $
     do
@@ -71,6 +72,7 @@ isPipelineProcessDone (_, _, _, ph) = do
 
 registerPipelineProcesses :: [PipelineProcess] -> StateT ShellState IO ()
 registerPipelineProcesses pipelineProcesses = do
+  -- io $ putStrLn ("[DEBUG]: registerPipelineProcesses")
   prevState <- get
   put $ prevState {pipelineProcesses = pipelineProcesses}
 

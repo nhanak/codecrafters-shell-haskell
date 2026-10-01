@@ -13,7 +13,7 @@ import ShellState.IO (clearPipelineProcesses, getBackgroundJobs, getCompleterScr
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
-import System.IO (Handle, hFlush, hGetContents, hPutStr, hSetEcho, stdin, stdout)
+import System.IO (Handle, hClose, hFlush, hGetContents, hPutStr, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (CreatePipe), createProcess, getPid, proc, readProcessWithExitCode)
 import Tokenizer (groupTokenizedArgsByPipeline, tokenize)
@@ -33,6 +33,7 @@ main = do
 main' :: StateT ShellState IO ()
 main' = do
   handleDoneBackgroundJobs
+  unregisterPipelineProcessesIfDone
   pipeProcessIsRunning <- isPipeProcessRunning
   if pipeProcessIsRunning then handlePipeProcessRunning else handleNoPipeProcessRunning
 
@@ -126,25 +127,35 @@ evaluate untokenizedArgs
 evaluatePipeline :: [[String]] -> StateT ShellState IO EvaluatedResult
 evaluatePipeline tokenizedArgs = do
   res <- evaluatePipeline' tokenizedArgs
-  -- io $ putStrLn ("[DEBUG]: unregistering pipeline processes now")
-  unregisterPipelineProcessesIfDone
+  -- io $ putStrLn ("[DEBUG]: evaluatePipeline")
   handlePipelineEvaluationResponse (pure res)
 
 evaluatePipeline' :: [[String]] -> StateT ShellState IO (Maybe String)
 evaluatePipeline' tokenizedArgs = do
   processes <- io $ mapM createPipelineProcess tokenizedArgs
   registerPipelineProcesses processes
+
+  -- io $ putStrLn ("[DEBUG]: evaluatePipeline'")
   io $ runPipelineProcesses processes
 
 handlePipelineEvaluationResponse :: StateT ShellState IO (Maybe String) -> StateT ShellState IO EvaluatedResult
 handlePipelineEvaluationResponse resIO = do
+  -- io $ putStrLn ("[DEBUG]: handlePipelineEvaluationResponse ENTERED")
   res <- resIO
+  -- io $ putStrLn ("[DEBUG]: handlePipelineEvaluationResponse ALLEGEDLY GOT RES")
+  -- io $ putStrLn ("[DEBUG]: handlePipelineEvaluationResponse get res" ++ show res)
   case res of
-    Nothing -> pure Continue
-    Just stdOut -> pure $ PrintStdOutAndContinue (init stdOut)
+    Nothing -> do
+      -- io $ putStrLn ("[DEBUG]: handlePipelineEvaluationResponse got NOTHING")
+      pure Continue
+    Just stdOut -> do
+      -- io $ putStrLn ("[DEBUG]: handlePipelineEvaluationResponse" ++ show (init stdOut))
+      let ans = PrintStdOutAndContinue (init stdOut)
+      pure ans
 
 evaluateInProgressPipeline :: [(Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)] -> StateT ShellState IO EvaluatedResult
 evaluateInProgressPipeline processes = do
+  -- io $ putStrLn ("[DEBUG]: evaluateInProgressPipeline")
   res <- io $ runPipelineProcesses processes
   handlePipelineEvaluationResponse (pure res)
 
@@ -166,11 +177,13 @@ runPipelineProcess prevStdOutIOMaybe (Just stdinHandle, Just stdoutHandle, _, _)
   prevStdOutMaybe <- prevStdOutIOMaybe
   case prevStdOutMaybe of
     Nothing -> do
+      hClose stdinHandle
       nextStdOut <- hGetContents stdoutHandle
       pure (Just nextStdOut)
     Just prevStdOut -> do
       hPutStr stdinHandle prevStdOut
       hFlush stdinHandle
+      hClose stdinHandle
       nextStdOut <- hGetContents stdoutHandle
       pure (Just nextStdOut)
 
