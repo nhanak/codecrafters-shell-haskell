@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Control.Concurrent (MVar (..), forkIO, newEmptyMVar, putMVar, takeMVar)
-import Control.Monad (mapM)
+import Control.Monad (forM, mapM, replicateM)
 import Control.Monad.State
 import Core (ProcessPriority (..), getArgsWithoutProcessPrioritySignifier, getProcessPriority, isPipeline)
 import Data.List (foldl', isInfixOf, isPrefixOf)
@@ -13,9 +13,9 @@ import ShellState.IO (clearPipelineProcesses, getBackgroundJobs, getCompleterScr
 import System.Directory (Permissions, doesDirectoryExist, doesFileExist, executable, findExecutable, getCurrentDirectory, getHomeDirectory, getPermissions, listDirectory, setCurrentDirectory)
 import System.Exit (ExitCode (..))
 import System.FilePath (getSearchPath, pathSeparator, takeBaseName, takeFileName)
-import System.IO (Handle, hClose, hFlush, hGetContents, hPutStr, hSetEcho, stdin, stdout)
+import System.IO (Handle, hClose, hFlush, hGetContents', hPutStr, hSetEcho, stdin, stdout)
 import System.IO.NoBufferingWorkaround (getCharNoBuffering, initGetCharNoBuffering)
-import System.Process (CreateProcess (..), ProcessHandle, StdStream (CreatePipe), createProcess, getPid, proc, readProcessWithExitCode)
+import System.Process (CreateProcess (..), ProcessHandle, StdStream (CreatePipe, Inherit, UseHandle), createPipe, createProcess, getPid, proc, readProcessWithExitCode, waitForProcess)
 import Tokenizer (groupTokenizedArgsByPipeline, tokenize)
 
 data EvaluatedResult = PrintStdOutAndContinue String | PrintStdErrAndContinue String | Exit | Continue | RedirectStdOutAndContinue String String RedirectMode | RedirectStdErrAndContinue String String RedirectMode | PrintStdOutAndRedirectStdErrAndContinue String String String RedirectMode | RedirectStdOutAndPrintStdErrAndContinue String String String RedirectMode | PrintStdOutAndPrintStdErrAndContinue String String deriving (Show)
@@ -132,11 +132,33 @@ evaluatePipeline tokenizedArgs = do
 
 evaluatePipeline' :: [[String]] -> StateT ShellState IO (Maybe String)
 evaluatePipeline' tokenizedArgs = do
-  processes <- io $ mapM createPipelineProcess tokenizedArgs
-  registerPipelineProcesses processes
+  stdInsAndStdOuts <- io $ replicateM ((length tokenizedArgs) - 1) createPipe
+  let stdins = Inherit : map (UseHandle . fst) stdInsAndStdOuts
+      stdouts = map (UseHandle . snd) stdInsAndStdOuts ++ [Inherit]
+  processHandles <- forM (zip3 tokenizedArgs stdins stdouts) $ \(tokenizedArg, stdin, stdout) -> do
+    (_, stdout, _, ph) <-
+      io $
+        createProcess
+          (proc (head tokenizedArg) (tail tokenizedArg))
+            { std_in = stdin,
+              std_out = stdout,
+              std_err = Inherit,
+              close_fds = True
+            }
+    pure (stdout, ph)
+  exitCodes <- io $ mapM (waitForProcess . snd) processHandles
+  case fst $ last processHandles of
+    Nothing -> pure Nothing
+    Just x -> do
+      contents <- io $ hGetContents' x
+      pure $ Just contents
 
-  -- io $ putStrLn ("[DEBUG]: evaluatePipeline'")
-  io $ runPipelineProcesses processes
+-- processes <- io $ mapM createPipelineProcess tokenizedArgs
+
+-- registerPipelineProcesses processes
+
+-- io $ putStrLn ("[DEBUG]: evaluatePipeline'")
+-- io $ runPipelineProcesses processes
 
 handlePipelineEvaluationResponse :: StateT ShellState IO (Maybe String) -> StateT ShellState IO EvaluatedResult
 handlePipelineEvaluationResponse resIO = do
@@ -175,16 +197,21 @@ runPipelineProcess _ (Nothing, _, _, _) = pure Nothing
 runPipelineProcess _ (_, Nothing, _, _) = pure Nothing
 runPipelineProcess prevStdOutIOMaybe (Just stdinHandle, Just stdoutHandle, _, _) = do
   prevStdOutMaybe <- prevStdOutIOMaybe
+  -- putStrLn ("[DEBUG]: runPipeline process")
   case prevStdOutMaybe of
     Nothing -> do
-      hClose stdinHandle
-      nextStdOut <- hGetContents stdoutHandle
+      -- hClose stdinHandle
+      nextStdOut <- hGetContents' stdoutHandle
+      -- putStrLn ("[DEBUG]: runPipelineProcess nextStdOut1: " ++ nextStdOut)
       pure (Just nextStdOut)
     Just prevStdOut -> do
+      -- putStrLn ("[DEBUG]: runPipelineProcess inserting prevStdOut2a..." ++ prevStdOut)
       hPutStr stdinHandle prevStdOut
       hFlush stdinHandle
-      hClose stdinHandle
-      nextStdOut <- hGetContents stdoutHandle
+      -- hClose stdinHandle
+      -- putStrLn ("[DEBUG]: runPipelineProcess nextStdOut2ba-----")
+      nextStdOut <- hGetContents' stdoutHandle
+      -- putStrLn ("[DEBUG]: runPipelineProcess nextStdOut2b: " ++ nextStdOut)
       pure (Just nextStdOut)
 
 evaluateNonPipeline :: [String] -> StateT ShellState IO EvaluatedResult
